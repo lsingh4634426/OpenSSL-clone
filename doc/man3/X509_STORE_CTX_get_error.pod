@@ -449,6 +449,7 @@ subject signature algorithm and issuer public key algorithm mismatch>
 The issuer's public key is not of the type required by the signature in
 the subject's certificate.
 
+
 =item B<X509_V_ERR_SIGNATURE_ALGORITHM_INCONSISTENCY:
 cert info signature and signature algorithm mismatch>
 
@@ -459,6 +460,11 @@ The algorithm given in the certificate info is inconsistent
 
 A CA certificate is invalid. Either it is not a CA or its extensions are not
 consistent with the supplied purpose.
+
+=item B<X509_V_ERR_WRONG_EXTENDED_KEY_USAGE:
+wrong certificate extended key usage>
+
+The certificate does not allow for the required Extended Key Usage (EKU).
 
 =back
 

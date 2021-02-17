@@ -23,6 +23,7 @@ struct X509_VERIFY_PARAM_st {
     time_t check_time;          /* Time to use */
     uint32_t inh_flags;         /* Inheritance flags */
     unsigned long flags;        /* Various verify flags */
+    int eku;                    /* NID_undef or required Extended Key Usage */
     int purpose;                /* purpose to check untrusted certificates */
     int trust;                  /* trust setting to check */
     int depth;                  /* Verify depth */

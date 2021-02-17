@@ -528,6 +528,8 @@ SSL_CTX_set1_cert_comp_preference       ?	3_2_0	EXIST::FUNCTION:
 SSL_set1_cert_comp_preference           ?	3_2_0	EXIST::FUNCTION:
 SSL_CTX_compress_certs                  ?	3_2_0	EXIST::FUNCTION:
 SSL_compress_certs                      ?	3_2_0	EXIST::FUNCTION:
+SSL_CTX_set_eku                         ?	3_2_0	EXIST::FUNCTION:
+SSL_set_eku                             ?	3_2_0	EXIST::FUNCTION:
 SSL_CTX_set1_compressed_cert            ?	3_2_0	EXIST::FUNCTION:
 SSL_set1_compressed_cert                ?	3_2_0	EXIST::FUNCTION:
 SSL_CTX_get1_compressed_cert            ?	3_2_0	EXIST::FUNCTION:

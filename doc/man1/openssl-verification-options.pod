@@ -24,8 +24,9 @@ The most important of them are detailed in the following sections.
 In a nutshell, a valid chain of certificates needs to be built up and verified
 starting from the I<target certificate> that is to be verified
 and ending in a certificate that due to some policy is trusted.
-Verification is done relative to the given I<purpose>, which is the intended use
-of the target certificate, such as SSL server, or by default for any purpose.
+Certificate validation can be done relatively to a given Extended Key Usage
+(EKU) or I<purpose> specifying the intended use of the target certificate,
+such as SSL server, or (by default) for any EKU and any purpose.
 
 The details of how each OpenSSL command handles errors
 are documented on the specific command page.
@@ -150,11 +151,15 @@ the chain components and their links are checked thoroughly.
 The first step is to check that each certificate is well-formed.
 Part of these checks are enabled only if the B<-x509_strict> option is given.
 
-The second step is to check the extensions of every untrusted certificate
-for consistency with the supplied purpose.
-If the B<-purpose> option is not given then no such checks are done
+The second step is to check the extensions of every certificate
+for consistency with the given Extended Key Usage (EKU) or purpose.
+If an EKU is given it overrides any purpose requirements for the entire chain.
+Then each certificate must either not have an EKU extension,
+or the EKU extension must include the given required EKU
+or the special 'wildcard' EKU B<anyExtendedKeyUsage>.
+If no B<-purpose> or B<-eku> option is given then no such checks are done
 except for SSL/TLS connection setup,
-where by default C<sslserver> or C<sslclient>, are checked.
+where by default the purpose C<sslserver> or C<sslclient> is checked.
 The target or "leaf" certificate, as well as any other untrusted certificates,
 must have extensions compatible with the specified purpose.
 All certificates except the target or "leaf" must also be valid CA certificates.
