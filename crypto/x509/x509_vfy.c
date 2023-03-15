@@ -593,8 +593,8 @@ static int check_extensions(X509_STORE_CTX *ctx)
         }
 
         if (eku != NID_undef)
-            /* EKU requirement overrides purpose check */
-            CB_FAIL_IF(X509_check_eku(x, eku) <= 0, ctx, x, i,
+            /* leaf EKU requirement overrides purpose check along the chain */
+            CB_FAIL_IF(i == 0 && X509_check_eku(x, eku) <= 0, ctx, x, i,
                        X509_V_ERR_WRONG_EXTENDED_KEY_USAGE);
         /* check_purpose() makes the callback as needed */
         else if (purpose > 0 && !check_purpose(ctx, x, purpose, i, must_be_ca))

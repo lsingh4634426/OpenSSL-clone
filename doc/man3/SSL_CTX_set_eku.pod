@@ -15,19 +15,20 @@ SSL_set_eku
 
 =head1 DESCRIPTION
 
-SSL_CTX_set_eku() and SSL_CTX_set_eku() set the given I<nid> as the expected
+SSL_CTX_set_eku() and SSL_set_eku() set the given I<nid> as the expected
 Extended Key Usage (EKU) in the verification parameters of I<ctx> or I<ssl>,
 respectively.
-Using B<NID_undef> resets the requirement.
+Using for I<nid> the value B<NID_undef> resets the requirement.
 Otherwise the NID must correspond to an EKU OID, for example B<NID_server_auth>.
 It may have been obtained by parsing a text string using L<OBJ_txt2nid(3)>.
 Likely only B<NID_client_auth> or B<NID_server_auth> will make sense with SSL.
 
 If provided, the NID overrides any purpose requirements for the entire chain
-and determines the acceptable EKU for all certificates in the chain,
-from the peer certificate up to and including the trust anchor certificate.
-Each of these certificates must either not have an EKU extension,
+and determines the acceptable EKU for the leaf certificate in the chain,
+i.e., the peer certificate.
+This certificate must either not have an EKU extension,
 or its EKU extension must include the desired EKU or B<anyExtendedKeyUsage>.
+If I<nid> is B<anyExtendedKeyUsage> the check passes for any certificate.
 
 =head1 RETURN VALUES
 
@@ -42,7 +43,7 @@ L<SSL_CTX_set_verify(3)>
 =head1 HISTORY
 
 The SSL_CTX_set_eku() and SSL_CTX_set_eku()
-functions were added in OpenSSL 3.0.
+functions were added in OpenSSL 3.2.
 
 =head1 COPYRIGHT
 
