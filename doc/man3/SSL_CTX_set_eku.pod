@@ -27,8 +27,10 @@ If provided, the NID overrides any purpose requirements for the entire chain
 and determines the acceptable EKU for the leaf certificate in the chain,
 i.e., the peer certificate.
 This certificate must either not have an EKU extension,
-or its EKU extension must include the desired EKU or B<anyExtendedKeyUsage>.
-If I<nid> is B<anyExtendedKeyUsage> the check passes for any certificate.
+or its EKU extension must include the desired EKU or B<anyExtendedKeyUsage>,
+or I<nid> equals B<anyExtendedKeyUsage>.
+If the B<X509_V_FLAG_EKU_INCLUDED> verification flag is set the EKU extension
+must be present in the certificate and must include the specified EKU I<nid>.
 
 =head1 RETURN VALUES
 

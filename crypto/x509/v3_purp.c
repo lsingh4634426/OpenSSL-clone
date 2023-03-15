@@ -43,11 +43,11 @@ static int xp_cmp(const X509_PURPOSE *const *a, const X509_PURPOSE *const *b);
 static void xptable_free(X509_PURPOSE *p);
 
 /* Directly check for allowed extended key usage (EKU) */
-int X509_check_eku(X509 *x, int nid)
+int X509_check_eku(X509 *x, int nid, int eku_included)
 {
     int eku, i, n = sk_ASN1_OBJECT_num(x->ex_ekus);
 
-    if (nid == NID_anyExtendedKeyUsage || n <= 0)
+    if (!eku_included && (nid == NID_anyExtendedKeyUsage || n <= 0))
         return 1;
     for (i = 0; i < n; i++) {
         eku = OBJ_obj2nid(sk_ASN1_OBJECT_value(x->ex_ekus, i));

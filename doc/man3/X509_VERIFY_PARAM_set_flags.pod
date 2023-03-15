@@ -99,8 +99,10 @@ If provided, the NID overrides any purpose requirements for the entire chain
 and determines the acceptable EKU for the target of "leaf" certificate
 in the chain, which may be an end-entity certificate or CA certificate.
 This certificate must either not have an EKU extension,
-or the EKU extension must include the desired EKU or B<anyExtendedKeyUsage>.
-If I<nid> is B<anyExtendedKeyUsage> the check passes for any certificate.
+or the EKU extension must include the desired EKU or B<anyExtendedKeyUsage>,
+or I<nid> equals B<anyExtendedKeyUsage>.
+If the B<X509_V_FLAG_EKU_INCLUDED> verification flag is set the EKU extension
+must be present in the certificate and must include the specified EKU I<nid>.
 
 X509_VERIFY_PARAM_set_purpose() sets the verification purpose in B<param>
 to B<purpose>. This determines the acceptable purpose of the certificate
@@ -344,6 +346,9 @@ be without the B<X509_V_FLAG_PARTIAL_CHAIN> flag.
 The B<X509_V_FLAG_NO_CHECK_TIME> flag suppresses checking the validity period
 of certificates and CRLs against the current time. If X509_VERIFY_PARAM_set_time()
 is used to specify a verification time, the check is not suppressed.
+
+The B<X509_V_FLAG_EKU_INCLUDED> flag modifies any enabled EKU check such that
+an EKU certificate extension must be present and must include the specified EKU.
 
 =head1 INHERITANCE FLAGS
 

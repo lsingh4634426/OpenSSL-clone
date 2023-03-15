@@ -465,6 +465,7 @@ static int check_extensions(X509_STORE_CTX *ctx)
     X509 *x;
     int ret, proxy_path_length = 0;
     int eku = ctx->param->eku;
+    int eku_included = (ctx->param->flags & X509_V_FLAG_EKU_INCLUDED) != 0;
     int purpose, allow_proxy_certs, num = sk_X509_num(ctx->chain);
 
     /*-
@@ -594,8 +595,8 @@ static int check_extensions(X509_STORE_CTX *ctx)
 
         if (eku != NID_undef)
             /* leaf EKU requirement overrides purpose check along the chain */
-            CB_FAIL_IF(i == 0 && X509_check_eku(x, eku) <= 0, ctx, x, i,
-                       X509_V_ERR_WRONG_EXTENDED_KEY_USAGE);
+            CB_FAIL_IF(i == 0 && X509_check_eku(x, eku, eku_included) <= 0,
+                       ctx, x, i, X509_V_ERR_WRONG_EXTENDED_KEY_USAGE);
         /* check_purpose() makes the callback as needed */
         else if (purpose > 0 && !check_purpose(ctx, x, purpose, i, must_be_ca))
             return 0;
