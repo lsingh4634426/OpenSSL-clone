@@ -2333,6 +2333,15 @@ int X509_STORE_CTX_set_trust(X509_STORE_CTX *ctx, int trust)
 int X509_STORE_CTX_purpose_inherit(X509_STORE_CTX *ctx, int def_purpose,
                                    int purpose, int trust)
 {
+    return X509_STORE_CTX_purpose_inherit_ex(ctx, def_purpose, purpose, trust, 0);
+}
+
+/*
+ * This "_ex" function allows to override existing values
+ */
+int X509_STORE_CTX_purpose_inherit_ex(X509_STORE_CTX *ctx, int def_purpose,
+                                   int purpose, int trust, int override)
+{
     int idx;
 
     /* If purpose not set use default */
@@ -2374,9 +2383,9 @@ int X509_STORE_CTX_purpose_inherit(X509_STORE_CTX *ctx, int def_purpose,
         }
     }
 
-    if (ctx->param->purpose == 0 && purpose != 0)
+    if ((ctx->param->purpose == 0 && purpose != 0) || override != 0)
         ctx->param->purpose = purpose;
-    if (ctx->param->trust == 0 && trust != 0)
+    if ((ctx->param->trust == 0 && trust != 0) || override != 0)
         ctx->param->trust = trust;
     return 1;
 }
