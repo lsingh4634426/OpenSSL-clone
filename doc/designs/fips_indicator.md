@@ -15,14 +15,10 @@ The following information was extracted from the FIPS 140-3 IG [5] “2.4.C Appr
 - A module must have an approved mode of operation that requires at least one service to use an approved security function (defined by [2] and [3]).
 - A FIPS 140-3 compliant module requires a built-in service indicator capable of indicating the use of approved security services
 - If a module only supports approved services in an approved manner an implicit indicator can be used (e.g. successful completion of a service is an indicator).
-- An approved algorithm is not considered to be an approved implementation if it does not have a CAVP certificate or does not include its required self-tests.
-(i.e. My interpretation of this is that if the CAVP certificate lists an algorithm with only a subset of key sizes, digests, and/or ciphers compared to the implementation, the differences ARE NOT APPROVED. In many places we have no restrictions on the digest or cipher selected.
+- An approved algorithm is not considered to be an approved implementation if it does not have a CAVP certificate or does not include its required self-tests. (i.e. My interpretation of this is that if the CAVP certificate lists an algorithm with only a subset of key sizes, digests, and/or ciphers compared to the implementation, the differences ARE NOT APPROVED. In many places we have no restrictions on the digest or cipher selected).
 - Documentation is required to demonstrate how to use indicators for each approved cryptographic algorithm.
 - Testing is required to execute all services and verify that the indicator provides an unambiguous indication of whether the service utilizes an approved cryptographic algorithm, security function or process in an approved manner or not.
-- The Security Policy may require updates related to indicators.
-AWS/google have added a table in their security policy called
-‘Non-Approved Algorithms not allowed in the approved mode of operation’.
-An example is RSA with a keysize of < 2048 bits (which has been enforced by [4]).
+- The Security Policy may require updates related to indicators. AWS/google have added a table in their security policy called ‘Non-Approved Algorithms not allowed in the approved mode of operation’. An example is RSA with a keysize of < 2048 bits (which has been enforced by [4]).
 
 ### Legacy Support
 
@@ -31,9 +27,9 @@ For example DSA.
 
 The options are:
 
-- Completely remove the algorithm from the FIPS provider.
-  This is simple but means older applications can no longer process existing data, which is not ideal.
+- Completely remove the algorithm from the FIPS provider. This is simple but means older applications can no longer process existing data, which is not ideal.
 - Allow the algorithm but make it not approved with an context specific indicator.
+
 It is safer to make the protection operations fail rather than use an indicator.
 The processing operation for DSA would set the indicator to approved.
 
@@ -62,14 +58,14 @@ document this in the security policy.
 
 Each of these functions contains code of the following form:
 
-~~~
+``` c
 #if !defined(OPENSSL_NO_FIPS_SECURITYCHECKS)
     if (ossl_securitycheck_enabled(ctx)) {
       // Do some checks, and maybe return 0 for a hard failure
       ...
     }
 }
-~~~
+```
 
 OPENSSL_NO_FIPS_SECURITYCHECKS is also a configurable option
 If the security checks are not enabled then it is unapproved?
@@ -118,8 +114,7 @@ Use a per thread global counter that is incremented when an algorithm is approve
 
 - At the fips provider level this would require some plumbing to go from the core to the fips provider, which seems overly complex.
 - The query can only be done after the output is set.
-- The indicator code would end up having to be set in different places depending on the algorithm after the output
-is finalized. This would be fairly messy as the point where it is called is set could be different for different algorithms.
+- The indicator code would end up having to be set in different places depending on the algorithm after the output is finalized. This would be fairly messy as the point where it is called is set could be different for different algorithms.
 - The locking increment seems messy.
 
 #### Proposed Solution (Using an indicator everywhere)
@@ -134,20 +129,20 @@ By default if the getter is not handled then it would return not approved.
 
 Any fips algorithm that is approved would then need a setter that at a minimum contains code similar to the following
 
-~~~
+
 int ossl_xxx_fips_approved(void)
 {
 #ifdef FIPS_MODULE
-    return 1; /* conditional code would go here for each algorithm if required *
+    return 1; // conditional code would go here for each algorithm if required *
 #else
     return 0;
 #endif
 }
-~~~
+```
 
 and in the algorithms get_ctx() function
 
-~~~
+``` c
 int xxx_get_fips_approved(OSSL_PARAM params[])
 {
     p = OSSL_PARAM_locate(params, OSSL_FIPS_PARAM_APPROVED);
@@ -155,49 +150,49 @@ int xxx_get_fips_approved(OSSL_PARAM params[])
         return 0;
 	return 1;
 }
-~~~
+```
 
 #### API’s that would be used to support this are
 
 - EVP_PKEY Keygen, Encryption, Signatures, Key Exchange, KEM
 
-~~~ 
+``` c
 EVP_PKEY_CTX_get_params(ctx, );
-~~~
+```
 
-(Note that this would mean you couldnt use functions that hide the ctx such as EVP_PKEY_Q_keygen()!)
+(Note that this would mean you could not use functions that hide the ctx such as EVP_PKEY_Q_keygen()!)
 
 - Ciphers
 
-~~~
+``` c
 EVP_CIPHER_CTX_get_params()
-~~~
+```
 
 - Digests
 
-~~~
+``` c
 EVP_MD_CTX_get_params()
-~~~
+```
 
 - KDF’s
 
-~~~
+``` c
 EVP_KDF_CTX_get_params()
-~~~
+```
 
 - MAC’s
 
-~~~
+``` c
 EVP_MAC_CTX_get_params()
-~~~
+```
 
 - RAND
 
-~~~
+``` c
 EVP_RAND_CTX_get_params()
-~~~
+```
 
-#### Backwards Compatability
+#### Backwards Compatibility
 
 Previous providers do not support this operation, so they will return not approved if they are not handled.
 
@@ -212,42 +207,27 @@ If we had different kinds of compliance requirements (something other than FIPS)
 
 There are a few places where we do not enforce key size that need to be addressed.
 
-- HMAC
-Which applies to all algorithms that use HMAC also.
+- HMAC  Which applies to all algorithms that use HMAC also.
 - CMAC
 
 ### Algorithm Transitions
 
 Should we remove these algorithms completely from the fips provider, or use indicators? 
 
-- DES_EDE3_ECB
-Disallowed for encryption, allowed for legacy decryption
-- DSA
-Keygen and Signing are no longer approved, not sure if verify is still approved.
-- RSA Signing using PKCSV15
-Rsa self test for sign may need to change as the default pad_mode is PKCSV15
-Check if saltlen needs a indicator
-Padding mode updates required in rsa_check_padding().
-Check if sha1 is allowed?
-- ECDSA B & K curves are deprecated
-It looks like these are still allowed. Are the approved?
+- DES_EDE3_ECB.  Disallowed for encryption, allowed for legacy decryption
+- DSA.  Keygen and Signing are no longer approved, not sure if verify is still approved.
+- RSA Signing using PKCSV15.  Rsa self test for sign may need to change as the default pad_mode is PKCSV15. Check if saltlen needs a indicator. Padding mode updates required in rsa_check_padding(). Check if sha1 is allowed?
+- ECDSA B & K curves are deprecated   It looks like these are still allowed. Are the approved?
 - ED25519/ED448 is now approved.
 - X25519/X448 is not approved currently. keygen would need an indicator if we allow it?
-- RSA Key transport
-Padding need to be changed to either not allow padding modes other than OEAP or use an indicator.
-- RSA
-It looks like SP800-131Ar2 specifies that RSA >= 2048 is approved.
-Can we check with the labs what to do for the legacy verification cases
-since we allow >=1024. Would this now be unapproved?
-This would apply to rsa_kem also?
-rsa_keygen_pairwise_test() may need to change to do a sign/verify PCT?
-- TLS1_PRF
-If we are only trying to support TLS1.2 here then we should remove the tls1.0/1.1 code from the FIPS MODULE.
+- RSA Key transport  Padding need to be changed to either not allow padding modes other than OEAP or use an indicator.
+- RSA - It looks like SP800-131Ar2 specifies that RSA >= 2048 is approved. Can we check with the labs what to do for the legacy verification cases since we allow >=1024. Would this now be unapproved? This would apply to rsa_kem also? rsa_keygen_pairwise_test() may need to change to do a sign/verify PCT?
+- TLS1_PRF  If we are only trying to support TLS1.2 here then we should remove the tls1.0/1.1 code from the FIPS MODULE.
 
 ### Digest Checks
 
 Any algorithms that use a digest need to make sure that the CAVP certificate lists all supported FIPS digests otherwise an indicator is required.
-This applies to the following algorithms
+This applies to the following algorithms:
 
 - SSKDF
 - TLS_1_3_KDF
@@ -274,22 +254,13 @@ We should only allow AES. We currently just check the mode.
 
 ### Configurable options
 
-- PBKDF2
-'lower_bound_checks' needs to be part of the indicator check
+- PBKDF2 'lower_bound_checks' needs to be part of the indicator check
 
-- See the "security checks" Section.
-Anywhere using ossl_securitycheck_enabled() may need an indicator
+- See the "security checks" Section. Anywhere using ossl_securitycheck_enabled() may need an indicator
 
 ## Other Changes
 
-- AES-GCM
-Security Policy must list AES GCM IV generation scenarios
-- TEST_RAND
-is not approved.
-- SSKDF
-The security  policy needs to be specific about what it supports i.e.
-hash, kmac 128/256, hmac-hash.
-There are also currently no limitations on the digest for hash and hmac
-- KBKDF
-Security policy should list
-KMAC-128, KMAC-256 otherwise an indicator is required.
+- AES-GCM Security Policy must list AES GCM IV generation scenarios
+- TEST_RAND is not approved.
+- SSKDF  The security  policy needs to be specific about what it supports i.e. hash, kmac 128/256, hmac-hash. There are also currently no limitations on the digest for hash and hmac
+- KBKDF  Security policy should list KMAC-128, KMAC-256 otherwise an indicator is required.
