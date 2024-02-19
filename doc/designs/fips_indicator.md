@@ -195,7 +195,6 @@ Previous providers do not support this operation, so they will return not approv
 If we had different kinds of compliance requirements (something other than FIPS) either a separate getter could be added or the getter could return a int type instead of a 0 or 1..
 (e.g 1 = fips approved, 2 = some other compliance approved)
 
-
 Changes Required for indicators
 -------------------------------
 
