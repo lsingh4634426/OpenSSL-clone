@@ -1,6 +1,8 @@
-# OpenSSL FIPS Indicators
+OpenSSL FIPS Indicators
+=======================
 
-## References
+References
+----------
 
 - [1] FIPS 140-3 Standards: <https://csrc.nist.gov/projects/cryptographic-module-validation-program/fips-140-3-standards>
 - [2] Approved Security Functions: <https://csrc.nist.gov/projects/cryptographic-module-validation-program/sp-800-140-series-supplemental-information/sp800-140c>
@@ -8,7 +10,8 @@
 - [4] Key transitions: <https://csrc.nist.gov/pubs/sp/800/131/a/r2/final>
 - [5] FIPS 140-3 Implementation Guidance: <https://csrc.nist.gov/csrc/media/Projects/cryptographic-module-validation-program/documents/fips 140-3/FIPS 140-3 IG.pdf>
 
-## Requirements
+Requirements
+------------
 
 The following information was extracted from the FIPS 140-3 IG [5] “2.4.C Approved Security Service Indicator”
 
@@ -20,7 +23,8 @@ The following information was extracted from the FIPS 140-3 IG [5] “2.4.C Appr
 - Testing is required to execute all services and verify that the indicator provides an unambiguous indication of whether the service utilizes an approved cryptographic algorithm, security function or process in an approved manner or not.
 - The Security Policy may require updates related to indicators. AWS/google have added a table in their security policy called ‘Non-Approved Algorithms not allowed in the approved mode of operation’. An example is RSA with a keysize of < 2048 bits (which has been enforced by [4]).
 
-### Legacy Support
+Legacy Support
+--------------
 
 Due to key transitions [4] we may have some legacy algorithms that are in a state of only being approved for processing (verification, decryption, validation), and not for protection (signing, encrypting, keygen).
 For example DSA.
@@ -33,7 +37,8 @@ The options are:
 It is safer to make the protection operations fail rather than use an indicator.
 The processing operation for DSA would set the indicator to approved.
 
-### Security Checks
+Security Checks
+---------------
 
 OpenSSL currently defines configurable FIPS options.
 These options are supplied via the FIPS configuration file - which is normally setup via fipsinstall.
@@ -70,35 +75,25 @@ Each of these functions contains code of the following form:
 OPENSSL_NO_FIPS_SECURITYCHECKS is also a configurable option
 If the security checks are not enabled then it is unapproved?
 
-## Implementation options
+Implementation options
+----------------------
 
 The above requirements indicate 2 options.
 
 ### Option 1
 
-- Dont allow ANY non approved algorithms and then a indicator is not required.
+Dont allow ANY non approved algorithms and then a indicator is not required.
 
-#### Pros
-
-- Simple
-
-#### Cons
-
-- Problematic since we already have configurable options that are used for security checks etc.
-- We would need to return errors anywhere where an algorithm is not approved, which would cause
-  compatability issues
+- Pros: Simple
+- Cons: Problematic since we already have configurable options that are used for security checks etc.
+- Cons: We would need to return errors anywhere where an algorithm is not approved, which would cause compatibility issues
 
 ### Preferred Option
 
-- Add an indicator everywhere that it is required.
+Add an indicator everywhere that it is required.
 
-#### Pros
-
-- Flexible solution
-
-#### Cons
-
-- Requires a lot more effort to add the indicator to all the required places.
+- Pros: Flexible solution
+- Cons: Requires a lot more effort to add the indicator to all the required places.
 
 Note that in order for a service to be ‘fips approved’ the following requirements would need to be met.
 
@@ -106,57 +101,56 @@ Note that in order for a service to be ‘fips approved’ the following require
 - A service is a series of one or more API calls that must all succeed
 - A extra API call is needed after the service succeeds, that should return 1 if the service is approved.
 
-#### Solution 1 (Using an indicator everywhere)
+Solutions for the preferred Option
+----------------------------------
+
+### Solution 1 (Using an indicator everywhere)
 
 Use a per thread global counter that is incremented when an algorithm is approved.  AWS/google have added this in places where a service is at the point of completing its output (e.g. digest_final). This design is complicated by the fact that a service may call another service (e.g HMAC using SHA256) that also wants to increment the approved counter. To get around this issue they have a second variable that is used for nesting. If the variable is non zero then the approved counter doesnt increment. This also allows non security relevant functions to not increment the approved count. Another variation of this would be to use flags instead of a counter.
 
-##### Cons
+- Cons: At the fips provider level this would require some plumbing to go from the core to the fips provider, which seems overly complex.
+- Cons: The query can only be done after the output is set.
+- Cons: The indicator code would end up having to be set in different places depending on the algorithm after the output is finalized. This would be fairly messy as the point where it is called is set could be different for different algorithms.
+- Cons: The locking increment seems messy.
 
-- At the fips provider level this would require some plumbing to go from the core to the fips provider, which seems overly complex.
-- The query can only be done after the output is set.
-- The indicator code would end up having to be set in different places depending on the algorithm after the output is finalized. This would be fairly messy as the point where it is called is set could be different for different algorithms.
-- The locking increment seems messy.
-
-#### Proposed Solution (Using an indicator everywhere)
+### Proposed Solution (Using an indicator everywhere)
 
 Add a OSSL_PARAM getter to each provider algorithm context.
 By default if the getter is not handled then it would return not approved.
 
-##### Pros
-
-- The code is easier to find since it is part of the get_ctx_params function.
-- The getter can be called at any point after all the setting is done.
+- Pros: The code is easier to find since it is part of the get_ctx_params function.
+- Pros: The getter can be called at any point after the setting is done.
 
 Any fips algorithm that is approved would then need a setter that at a minimum contains code similar to the following
 
-
+``` C
 int ossl_xxx_fips_approved(void)
 {
-#ifdef FIPS_MODULE
+ifdef FIPS_MODULE
     return 1; // conditional code would go here for each algorithm if required *
-#else
+else
     return 0;
-#endif
+endif
 }
 ```
 
 and in the algorithms get_ctx() function
 
-``` c
+``` C
 int xxx_get_fips_approved(OSSL_PARAM params[])
 {
     p = OSSL_PARAM_locate(params, OSSL_FIPS_PARAM_APPROVED);
     if (p != NULL && !OSSL_PARAM_set_int(p, ossl_xxx_fips_approved()))
         return 0;
-	return 1;
+    return 1;
 }
 ```
 
-#### API’s that would be used to support this are
+### API’s that would be used to support this are
 
 - EVP_PKEY Keygen, Encryption, Signatures, Key Exchange, KEM
 
-``` c
+``` C
 EVP_PKEY_CTX_get_params(ctx, );
 ```
 
@@ -164,44 +158,46 @@ EVP_PKEY_CTX_get_params(ctx, );
 
 - Ciphers
 
-``` c
+``` C
 EVP_CIPHER_CTX_get_params()
 ```
 
 - Digests
 
-``` c
+``` C
 EVP_MD_CTX_get_params()
 ```
 
 - KDF’s
 
-``` c
+``` C
 EVP_KDF_CTX_get_params()
 ```
 
 - MAC’s
 
-``` c
+``` C
 EVP_MAC_CTX_get_params()
 ```
 
 - RAND
 
-``` c
+``` C
 EVP_RAND_CTX_get_params()
 ```
 
-#### Backwards Compatibility
+### Backwards Compatibility
 
 Previous providers do not support this operation, so they will return not approved if they are not handled.
 
-#### Alternate Solution
+### Alternate Solution
 
 If we had different kinds of compliance requirements (something other than FIPS) either a separate getter could be added or the getter could return a int type instead of a 0 or 1..
 (e.g 1 = fips approved, 2 = some other compliance approved)
 
-## Changes Required for indicators
+
+Changes Required for indicators
+-------------------------------
 
 ### key size >= 112 bits
 
@@ -212,7 +208,7 @@ There are a few places where we do not enforce key size that need to be addresse
 
 ### Algorithm Transitions
 
-Should we remove these algorithms completely from the fips provider, or use indicators? 
+Should we remove these algorithms completely from the fips provider, or use indicators?
 
 - DES_EDE3_ECB.  Disallowed for encryption, allowed for legacy decryption
 - DSA.  Keygen and Signing are no longer approved, not sure if verify is still approved.
@@ -258,7 +254,8 @@ We should only allow AES. We currently just check the mode.
 
 - See the "security checks" Section. Anywhere using ossl_securitycheck_enabled() may need an indicator
 
-## Other Changes
+Other Changes
+-------------
 
 - AES-GCM Security Policy must list AES GCM IV generation scenarios
 - TEST_RAND is not approved.
