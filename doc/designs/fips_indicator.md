@@ -97,9 +97,9 @@ Add an indicator everywhere that it is required.
 
 Note that in order for a service to be ‘fips approved’ the following requirements would need to be met.
 
-- Any algorithms are fetched using “fips=yes”
+- Any algorithms come from FIPS provider.
 - A service is a series of one or more API calls that must all succeed
-- A extra API call is needed after the service succeeds, that should return 1 if the service is approved.
+- A extra API call is needed after the service succeeds, that should return 1 if the service is FIPS approved.
 
 Solutions for the preferred Option
 ----------------------------------
@@ -202,8 +202,9 @@ Changes Required for indicators
 
 There are a few places where we do not enforce key size that need to be addressed.
 
-- HMAC  Which applies to all algorithms that use HMAC also.
+- HMAC  Which applies to all algorithms that use HMAC also (e.g. HKDF, SSKDF, KBKDF)
 - CMAC
+- KMAC
 
 ### Algorithm Transitions
 
@@ -211,12 +212,13 @@ Should we remove these algorithms completely from the fips provider, or use indi
 
 - DES_EDE3_ECB.  Disallowed for encryption, allowed for legacy decryption
 - DSA.  Keygen and Signing are no longer approved, not sure if verify is still approved.
-- RSA Signing using PKCSV15.  Rsa self test for sign may need to change as the default pad_mode is PKCSV15. Check if saltlen needs a indicator. Padding mode updates required in rsa_check_padding(). Check if sha1 is allowed?
-- ECDSA B & K curves are deprecated   It looks like these are still allowed. Are the approved?
+- ECDSA B & K curves are deprecated, but still approved according to (IG C.K Resolution 4). Should we remove these? If not we need to check that OSSL_PKEY_PARAM_USE_COFACTOR_ECDH is set for key agreement if the cofactor is not 1.
 - ED25519/ED448 is now approved.
-- X25519/X448 is not approved currently. keygen would need an indicator if we allow it?
-- RSA Key transport  Padding need to be changed to either not allow padding modes other than OEAP or use an indicator.
-- RSA - It looks like SP800-131Ar2 specifies that RSA >= 2048 is approved. Can we check with the labs what to do for the legacy verification cases since we allow >=1024. Would this now be unapproved? This would apply to rsa_kem also? rsa_keygen_pairwise_test() may need to change to do a sign/verify PCT?
+- X25519/X448 is not approved currently. keygen and keyexchange would also need an indicator if we allow it?
+- RSA encryption(transport) using PKCSV15 is no longer allowed. (Note that this break TLS 1.2 using RSA for KeyAgreement),  Padding mode updates required. Check RSA KEM also.
+- RSA signing using X931 is no longer allowed. (Still allowed for verification). Check if PSS saltlen needs a indicator (Note FIPS 186-4 Section 5.5 bullet(e). Padding mode updates required in rsa_check_padding(). Check if sha1 is allowed?
+- RSA - (From SP800-131Ar2) RSA >= 2048 is approved for keygen, signatures and key transport. Verification allows 1024 also. Note also that according to the (IG section C.F) that fips 186-2 verification is also allowed (So this may need either testing OR an indicator). Check that rsa_keygen_pairwise_test() and RSA self tests are all compliant with the above RSA restrictions.
+
 - TLS1_PRF  If we are only trying to support TLS1.2 here then we should remove the tls1.0/1.1 code from the FIPS MODULE.
 
 ### Digest Checks
@@ -225,7 +227,7 @@ Any algorithms that use a digest need to make sure that the CAVP certificate lis
 This applies to the following algorithms:
 
 - SSKDF
-- TLS_1_3_KDF
+- TLS_1_3_KDF (Only SHA256 and SHA384 Are allowed due to RFC 8446  Appendix B.4)
 - SSHKDF
 - X963KDF
 - X942KDF
@@ -237,6 +239,7 @@ This applies to the following algorithms:
 - KMAC
 
 Note this includes SHAKE
+KECCAK-KMAC-128 and KECCAK-KMAC-256 should not be allowed for anything other than KMAC.
 Do we need to check which algorithms allow SHA1 also?
 
 ### Cipher Checks
@@ -250,7 +253,7 @@ We should only allow AES. We currently just check the mode.
 ### Configurable options
 
 - PBKDF2 'lower_bound_checks' needs to be part of the indicator check
-
+- KMAC may need a lower bound check on the output size (SP800-185 Section 8.4.2)
 - See the "security checks" Section. Anywhere using ossl_securitycheck_enabled() may need an indicator
 
 Other Changes
