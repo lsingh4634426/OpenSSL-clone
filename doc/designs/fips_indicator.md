@@ -237,8 +237,9 @@ This applies to the following algorithms:
 - HMAC
 - KBKDF
 - KMAC
+- Any signature algorithms such as RSA, DSA, ECDSA.
 
-Note this includes SHAKE
+Note many of these (such as KDF's will not support SHAKE).
 KECCAK-KMAC-128 and KECCAK-KMAC-256 should not be allowed for anything other than KMAC.
 Do we need to check which algorithms allow SHA1 also?
 
