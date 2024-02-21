@@ -253,7 +253,6 @@ We should only allow AES. We currently just check the mode.
 ### Configurable options
 
 - PBKDF2 'lower_bound_checks' needs to be part of the indicator check
-- KMAC may need a lower bound check on the output size (SP800-185 Section 8.4.2)
 - See the "security checks" Section. Anywhere using ossl_securitycheck_enabled() may need an indicator
 
 Other Changes
@@ -263,3 +262,4 @@ Other Changes
 - TEST_RAND is not approved.
 - SSKDF  The security  policy needs to be specific about what it supports i.e. hash, kmac 128/256, hmac-hash. There are also currently no limitations on the digest for hash and hmac
 - KBKDF  Security policy should list KMAC-128, KMAC-256 otherwise an indicator is required.
+- KMAC may need a lower bound check on the output size (SP800-185 Section 8.4.2)
