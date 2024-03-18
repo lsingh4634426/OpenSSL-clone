@@ -82,26 +82,56 @@ The above requirements indicate 2 options.
 
 ### Option 1
 
-Dont allow ANY non approved algorithms and then a indicator is not required.
+Dont allow ANY non approved algorithms (an indicator is not required).
 
 - Pros: Simple
 - Cons: Problematic since we already have configurable options that are used for security checks etc.
 - Cons: We would need to return errors anywhere where an algorithm is not approved, which would cause compatibility issues
 
-### Preferred Option
+### Option 2
 
 Add an indicator everywhere that it is required.
 
 - Pros: Flexible solution
 - Cons: Requires a lot more effort to add the indicator to all the required places.
+- Cons: It is difficult to determine what should use an indicator, and what should just
+        return an error.
+- Cons: We end up with potentially an undetermined state if the check is done early.
 
 Note that in order for a service to be ‘fips approved’ the following requirements would need to be met.
 
-- Any algorithms come from FIPS provider.
+- Any algorithms come from a FIPS provider.
 - A service is a series of one or more API calls that must all succeed
 - A extra API call is needed after the service succeeds, that should return 1 if the service is FIPS approved.
 
-Solutions for the preferred Option
+### Option 3
+
+Have a hybrid solution that behaves like Option 1 normally that can optionally be turned off.
+
+This could have a per ctx 'pendantic' flag that is enabled by default which could be switched off
+via a ctx setter.
+
+The indicator is then just a ctx getter that returns whether the pendantic flag is set or not.
+
+The fips configurable options (See Security Checks) would then only be enabled in non pendantic mode?
+
+Anywhere where we were thinking of adding an indicator (In Option 2) will need code such as
+
+```` C
+
+if (pendant && some_conditions)
+    return 0;
+
+````
+
+- Pros: When Pendantic mode is on, only strict FIPS approved algorithms will be selected - which seems like the most useful mode.
+- Pros: For legacy cases The pendantic mode can be switched off if required.
+- Pros: The non approved check is simple.
+- Cons: Requires same effort to add indicator checks as option 2 does.
+- Cons: pendantic state needs to be either stored in or passed to the provider algorithm.
+
+
+Solutions for the Option 2
 ----------------------------------
 
 ### Solution 1 (Using an indicator everywhere)
