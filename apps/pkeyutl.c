@@ -293,22 +293,26 @@ int pkeyutl_main(int argc, char **argv)
     } else if (rawin) {
         BIO_printf(bio_err,
                    "%s: -rawin can only be used with -sign or -verify\n", prog);
+        EVP_PKEY_free(pkey);
         goto opthelp;
     }
     if (digestname != NULL && !rawin) {
         BIO_printf(bio_err,
                    "%s: -digest can only be used with -rawin\n", prog);
+        EVP_PKEY_free(pkey);
         goto opthelp;
     }
 
     if (rawin && rev) {
         BIO_printf(bio_err, "%s: -rev cannot be used with raw input\n", prog);
+        EVP_PKEY_free(pkey);
         goto opthelp;
     }
 
     if (rawin) {
         if ((mctx = EVP_MD_CTX_new()) == NULL) {
             BIO_printf(bio_err, "Error: out of memory\n");
+            EVP_PKEY_free(pkey);
             goto end;
         }
     }
@@ -578,7 +582,7 @@ static EVP_PKEY *get_pkey(const char *kdfalg,
 static EVP_PKEY_CTX *init_ctx(const char *kdfalg, int *pkeysize,
                               int pkey_op, ENGINE *e,
                               const int engine_impl, int rawin,
-                              EVP_PKEY *pkey /* may get deallocated */,
+                              EVP_PKEY *pkey /* ownership is passed to ctx */,
                               EVP_MD_CTX *mctx, const char *digestname,
                               OSSL_LIB_CTX *libctx, const char *propq)
 {
