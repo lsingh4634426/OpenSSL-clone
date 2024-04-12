@@ -46,8 +46,8 @@ static int only_rawin(const EVP_PKEY *pkey)
 {
     if (pkey == NULL)
         return 0;
-    return EVP_PKEY_get_id(pkey) == EVP_PKEY_ED25519
-        || EVP_PKEY_get_id(pkey) == EVP_PKEY_ED448;
+    return EVP_PKEY_is_a(pkey, "ED25519")
+        || EVP_PKEY_is_a(pkey, "ED448");
 }
 
 typedef enum OPTION_choice {
