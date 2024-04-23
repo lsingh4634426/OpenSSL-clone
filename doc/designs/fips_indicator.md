@@ -26,59 +26,122 @@ The following information was extracted from the FIPS 140-3 IG [5] “2.4.C Appr
 - Testing is required to execute all services and verify that the indicator provides an unambiguous indication of whether the service utilizes an approved cryptographic algorithm, security function or process in an approved manner or not.
 - The Security Policy may require updates related to indicators. AWS/google have added a table in their security policy called ‘Non-Approved Algorithms not allowed in the approved mode of operation’. An example is RSA with a keysize of < 2048 bits (which has been enforced by [4]).
 
+Since any new FIPS restrictions added could possibly break existing applications
+the following additional OpenSSL requirements are also needed:
+
+- The FIPS restrictions should be able to be disabled using Configuration file options (This results in unapproved mode and requires an indicator).
+- A mechanism for logging the details of any unapproved mode operations that have been triggered (e.g. DSA Signing)
+- The FIPS restrictions should be able to be enabled/disabled per algorithm context.
+- If the per algorithm context value is not set, then the  Configuration file option is used.
+
 Solution
 --------
 
-We already have most of the existing code in the FIPS provider using
+In OpenSSL most of the existing code in the FIPS provider is using
 implicit indicators i.e. An error occurs if existing FIPS rules are violated.
 
 The following rules will apply to any code that currently is not FIPS approved,
 but needs to be.
 
-- There will be a 'fips approved' mode per provider operation context that is on by default.
-- In this mode any FIPS rule that is violated will result in an error.
-- The 'fips approved' mode may be turned off per context via a OSSL_PARAM setter, if it
-is turned off then the operation is not FIPS approved.
-- A getter is required that returns if the operation is 'fips approved' using an
-OSSL_PARAM. The returned value can be a combination of the set 'fips_approved' mode
-plus any other logic. This is an explicit indicator.
-- Any algorithm that is transitioning [4] to not being allowed should be removed from
-the fips provider.
-- If an algorithm is transitioning [4] to be only allowed for processing
-(e.g. verification, signing, key validation) then the protection code
-(keygen, signing, encryption) should be removed from the fips provider, any
-attempt to use the protection API's should result in an error. The processing
-code should still be functional.
+- The fipsinstall application will have a configurable item added for each algorithm that requires a change.
+These options will be passed to the FIPS provider in a manner similar to existing code.
 
-Other rules:
-The existing flags that we set in the fips config file to control security checks
-will continue to function as they do now, and will not be affected by the
-strict mode variable.
-The getter to determine if we are fips approved will however take the flags
-into account.
+- A user defined callback similar to OSSL_SELF_TEST will be added. This callback
+will be triggered whenever an approved mode test fails.
+It may be set up by the user using
 
-Motivation
+```c
+OSSL_INDICATOR_set_callback(OSSL_LIB_CTX *libctx, OSSL_CALLBACK *cb, void *cbarg)
+```
+
+- The callback API will be
+
+```c
+int OSSL_INDICATOR_callback(OSSL_LIB_CTX *libctx, const char *algtype,
+                            const char *algdesc)
+```
+
+This can be used during application testing to log that an indicator was
+triggered. The user callback may return 0 if the application wants an error
+to occur based on the indicator type and description.
+
+- To control an algorithm context's checks via code requires a setter (e.g OSSL_ALG_PARAM_STRICT_CHECKS),
+
+```c
+    p = OSSL_PARAM_locate_const(params, OSSL_ALG_PARAM_STRICT_CHECKS);
+    if (p != NULL
+        && !OSSL_PARAM_get_int(p, &ctx->strict_checks))
+        return 0;
+```
+
+The setter is initially -1 (unknown) and can be set to 0 or 1 via a set_ctx call.
+If the setter is -1, when the FIPS related approved mode check is done then it
+uses the value from the FIPS configuration instead.
+
+- To access the indicator via code requires a getter (e.g OSSL_ALG_PARAM_APPROVED_INDICATOR),
+
+```c
+    p = OSSL_PARAM_locate(params, OSSL_ALG_PARAM_APPROVED_INDICATOR);
+    if (p != NULL && !OSSL_PARAM_set_int(p, ctx->approved))
+        return 0;
+```
+
+This initially has a value of -1, and is set to either 0 or 1 when a FIPS approved
+mode check is done. The getter allows you to access the indicator value after the
+operation has completed.
+
+- Example Algorithm Check
+
+```c
+void alg_init(ALG_CTX *ctx)
+{
+    ctx->strict_checks = -1;
+    ctx->approved = -1;
+}
+
+int alg_check_approved(ALG_CTX *ctx)
+{
+    int pass;
+
+    ctx->approved = 1;
+    pass = some_fips_test_passes(ctx->libctx); // Check FIPS restriction for alg
+    if (!pass) {
+        ctx->approved = 0;
+        if (ctx->strict_checks == -1)
+            ctx->strict_checks = fips_config_get(ctx->libctx, op);
+        if (ctx->strict_checks == 1
+                || !OSSL_INDICATOR_callback(ctx->libctx, "ALG NAME", "ALG DESC"))
+        return 0;
+    }
+    return 1;
+}
+```
+
+- Existing security check changes
+
+OpenSSL currently does checks that are conditionally based on FIPS config values..
+
+```c
+    if (ossl_securitycheck_enabled(ctx)) {
+       pass = do_some_alg_test(ctx);
+       if (!pass)
+        return 0; /* Produce an error */
+    
+    }
+```
+
+These need to change to work as indicators so the test always runs.. i.e.
+
+```c
+    pass = do_some_alg_test(ctx);
+    // Do code similar to alg_check_approved() above
+```
+
+Notes
 ----------
 
-The nature of FIPS is that new rules are introduced that will break older code,
-and this should be expected.
-We have a FIPS provider to enforce FIPS rules, if you need NON FIPS approved
-algorithms they should be coming from the default provider. 
-
-Implicit indicators are being chosen as they are simple to understand and are
-the most useful way of enforcing FIPS restrictions. In cases where FIPS cannot
-be used, the setter will still provide a way to override the behaviour, but the
-user must deliberately chose to do this.
-
-A system that relies on explicit indicators to test after the operation as to
-whether a operation is approved or NOT is subject to misuse. Although this may
-provide an 'easier' path for backwards compatibility, this is not the intention
-of a FIPS module.
-
 There was discussion related to also having a global config setting that could
-turn off FIPS mode. If we get to this point we should be using the default provider.
-It would also be confusing having the existing fips configuration flags combined
-with a global setting.
+turn off FIPS mode. This will not be added at this stage.
 
 New Changes Required
 --------------------
