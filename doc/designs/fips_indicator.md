@@ -51,19 +51,25 @@ will be triggered whenever an approved mode test fails.
 It may be set up by the user using
 
 ```c
-OSSL_INDICATOR_set_callback(OSSL_LIB_CTX *libctx, OSSL_CALLBACK *cb, void *cbarg)
-```
+typedef int (OSSL_CALLBACK)(const OSSL_PARAM params[], void *arg);
 
-- The callback API will be
+void OSSL_INDICATOR_set_callback(OSSL_LIB_CTX *libctx, OSSL_CALLBACK *cb, void *cbarg)
+```
+The callback and/or cbarg can be changed at any time.
+
+- Internally within the FIPS module algorithms the following internal helper
+callback may be called
 
 ```c
-int OSSL_INDICATOR_callback(OSSL_LIB_CTX *libctx, const char *algtype,
+int ossl_INDICATOR_callback(OSSL_LIB_CTX *libctx, const char *algtype,
                             const char *algdesc)
 ```
 
-This can be used during application testing to log that an indicator was
-triggered. The user callback may return 0 if the application wants an error
-to occur based on the indicator type and description.
+An application's indicator OSSL_CALLBACK can be used to log that an
+indicator was triggered. The callback may return either zero or non zero based
+on the indicator type and description. Returning non zero from the callback
+allows the operation to continue in a non-FIPS approved mode of operation.
+Returning 0 causes an error to occur in the caller operation.
 
 - To control an algorithm context's checks via code requires a setter (e.g OSSL_ALG_PARAM_STRICT_CHECKS),
 
@@ -90,6 +96,11 @@ This initially has a value of -1, and is set to either 0 or 1 when a FIPS approv
 mode check is done. The getter allows you to access the indicator value after the
 operation has completed.
 
+If strict_checks is set to 1 then:
+- the FIPS configuration value is not used
+- If the operation is detected to be using unapproved mode then an error will
+  occur and the indicator callback will not be triggered.
+
 - Example Algorithm Check
 
 ```c
@@ -109,7 +120,7 @@ int alg_check_approved(ALG_CTX *ctx)
         ctx->approved = 0;
         if (ctx->strict_checks == -1)
             ctx->strict_checks = fips_config_get(ctx->libctx, op);
-        if (ctx->strict_checks == 1
+        if (ctx->strict_checks != 0
                 || !OSSL_INDICATOR_callback(ctx->libctx, "ALG NAME", "ALG DESC"))
         return 0;
     }
@@ -119,7 +130,10 @@ int alg_check_approved(ALG_CTX *ctx)
 
 - Existing security check changes
 
-OpenSSL currently does checks that are conditionally based on FIPS config values..
+OpenSSL already uses FIPS configuration options to perform security_checks, but
+the existing code needs to change to work with indicators.
+
+e.g. existing code
 
 ```c
     if (ossl_securitycheck_enabled(ctx)) {
@@ -129,13 +143,35 @@ OpenSSL currently does checks that are conditionally based on FIPS config values
     
     }
 ```
-
-These need to change to work as indicators so the test always runs.. i.e.
+In updated code for indicators the test always runs.. i.e.
 
 ```c
     pass = do_some_alg_test(ctx);
     // Do code similar to alg_check_approved() above
+    // which will conditionally decide whether to return an error
+    // or trigger the indicator callback.
 ```
+
+Issues with setting OSSL_ALG_PARAM_STRICT_CHECKS
+------------------------------------------------
+
+Normally a user would set params such as OSSL_ALG_PARAM_STRICT_CHECKS using
+set_ctx_params() but some algorithms currently do checks in their init operation.
+These init functions normally pass an OSSL_PARAM[] argument, but this still
+requires the user to set OSSL_ALG_PARAM_STRICT_CHECKS in their init.
+
+e.g.
+
+```c
+int strict = 0;
+params[0] = OSSL_PARAM_construct_int(OSSL_ALG_PARAM_STRICT_CHECKS, strict);
+EVP_DigestSignInit_ex(ctx, &pctx, name, libctx, NULL, pkey, params);
+// using EVP_PKEY_CTX_set_params() here would be too late
+```
+
+Delaying the check to after the init would be possible, but it would be a change
+in existing behaviour. For example the keysize checks are done in the init since
+this is when the key is setup.
 
 Notes
 ----------
@@ -145,6 +181,12 @@ turn off FIPS mode. This will not be added at this stage.
 
 New Changes Required
 --------------------
+
+The following changes are required for FIPS 140-3 and will require indicators.
+On a cases by case basis we must decide what to do when unapproved mode is
+detected.
+The mechanism using FIPS configuration options and the indicator callback should
+be used for most of these unapproved cases (rather than always returning an error).
 
 ### key size >= 112 bits
 
@@ -169,6 +211,8 @@ There are a few places where we do not enforce key size that need to be addresse
 - RSA - (From SP800-131Ar2) RSA >= 2048 is approved for keygen, signatures and key transport. Verification allows 1024 also. Note also that according to the (IG section C.F) that fips 186-2 verification is also allowed (So this may need either testing OR an indicator - it also mentions the modulus size must be 1024 * 256*s). Check that rsa_keygen_pairwise_test() and RSA self tests are all compliant with the above RSA restrictions.
 
 - TLS1_PRF  If we are only trying to support TLS1.2 here then we should remove the tls1.0/1.1 code from the FIPS MODULE.
+
+- ECDSA Verify using prehashed message is not allowed.
 
 ### Digest Checks
 
