@@ -55,8 +55,8 @@ knowledge of cryptographic principles and understand the implications of your
 changes.
 
 Finally, it is possible for a provider to bypass the default RAND setup for
-L<RAND_bytes(3)> and associated functions.  A provider can specified as the
-single randomness source via the L<RAND_set1_random_provider(3)> or via
+L<RAND_bytes(3)> and associated functions.  A provider can be specified as the
+single randomness source via the L<RAND_set1_random_provider(3)> function or via
 configuration using the B<random_provider> option in L<config(5)>.  Once specified,
 the nominated provider will be used directly when calling the L<RAND_bytes(3)>
 family of functions.
