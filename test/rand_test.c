@@ -118,18 +118,30 @@ static int r_init(const OSSL_CORE_HANDLE *handle,
     return 1;
 }
 
-static int test_rand_random_proivider(void)
+static int test_rand_random_provider(void)
 {
     OSSL_LIB_CTX *ctx = NULL;
     OSSL_PROVIDER *prov = NULL;
     int res = 0;
-    static const unsigned char data[] = { 0, 1, 2, 3, 4, 5, 6 };
+    static const unsigned char data[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     unsigned char buf[sizeof(data)];
 
     if (!test_get_libctx(&ctx, NULL, NULL, NULL, NULL)
             || !TEST_true(OSSL_PROVIDER_add_builtin(ctx, "r_prov", &r_init))
             || !TEST_ptr(prov = OSSL_PROVIDER_try_load(ctx, "r_prov", 1))
             || !TEST_true(RAND_set1_random_provider(ctx, prov))
+            || !RAND_bytes_ex(ctx, buf, sizeof(buf), 256)
+            || !TEST_mem_eq(buf, sizeof(buf), data, sizeof(data)))
+        goto err;
+
+    /* Test we can revert to not using the provided randomness */
+    if (!TEST_true(RAND_set1_random_provider(ctx, NULL))
+            || !RAND_bytes_ex(ctx, buf, sizeof(buf), 256)
+            || !TEST_mem_ne(buf, sizeof(buf), data, sizeof(data)))
+        goto err;
+
+    /* And back to the provided randomness */
+    if (!TEST_true(RAND_set1_random_provider(ctx, prov))
             || !RAND_bytes_ex(ctx, buf, sizeof(buf), 256)
             || !TEST_mem_eq(buf, sizeof(buf), data, sizeof(data)))
         goto err;
@@ -147,6 +159,6 @@ int setup_tests(void)
         return 0;
     ADD_TEST(test_rand);
     ADD_TEST(test_rand_uniform);
-    ADD_TEST(test_rand_random_proivider);
+    ADD_TEST(test_rand_random_provider);
     return 1;
 }
