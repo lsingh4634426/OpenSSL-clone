@@ -15,6 +15,7 @@ my $security_checks = 1;
 my $ems_check = 1;
 my $drgb_no_trunc_dgst = 1;
 my $kdf_digest_check = 1;
+my $kdf_key_check = 1;
 
 my $activate = 1;
 my $mac_key;
@@ -55,4 +56,10 @@ tls1-prf-digest-check = $kdf_digest_check
 sshkdf-digest-check = $kdf_digest_check
 sskdf-digest-check = $kdf_digest_check
 x963kdf-digest-check = $kdf_digest_check
+hkdf-key-check = $kdf_key_check
+tls13-kdf-key-check = $kdf_key_check
+tls1-prf-key-check = $kdf_key_check
+sshkdf-key-check = $kdf_key_check
+sskdf-key-check = $kdf_key_check
+x963kdf-key-check = $kdf_key_check
 _____
