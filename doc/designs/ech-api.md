@@ -6,7 +6,7 @@ that has an implementation of Encrypted Client Hello (ECH) and these are design
 notes relating to the current APIs for that, and an analysis of how these
 differ from those currently in the boringssl library.
 
-The [plan](https://github.com/openssl/project/issues/659) is to incrementally 
+The [plan](https://github.com/openssl/project/issues/659) is to incrementally
 get that code reviewed in this feature/ech branch.
 
 ECH involves creating an "inner" ClientHello (CH) that contains the potentially
@@ -269,13 +269,11 @@ To enable ECH-specific padding, one makes a call to:
 The default padding scheme is to ensure the following sizes for the plaintext
 form of these messages:
 
-| ------------------- | ------------ | ------------------- |
 | Message             | Minimum Size | Size is multiple of |
 | ------------------- | ------------ | ------------------- |
 | Certificate         | 1792         | 128                 |
 | CertificateVerify   | 480          | 16                  |
 | EncryptedExtensions | 32           | 16                  |
-| ------------------- | ------------ | ------------------- |
 
 The ciphertext form of these messages, as seen on the network in the record
 layer protocol, will usually be 16 octets more, due to the AEAD tag that is
