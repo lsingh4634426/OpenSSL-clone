@@ -6,9 +6,6 @@ that has an implementation of Encrypted Client Hello (ECH) and these are design
 notes relating to the current APIs for that, and an analysis of how these
 differ from those currently in the boringssl library.
 
-The [plan](https://github.com/openssl/project/issues/659) is to incrementally
-get that code reviewed in this feature/ech branch.
-
 ECH involves creating an "inner" ClientHello (CH) that contains the potentially
 sensitive content of a CH, primarily the SNI and perhaps the ALPN values. That
 inner CH is then encrypted and embedded (as a CH extension) in an outer CH that
@@ -110,7 +107,7 @@ inner CH to another server that does the actual TLS handshake with the client.
 
 ### Key and ECHConfigList Generation
 
-``ossl_edch_make_echconfig()`` is for use by command line or other key
+``OSSL_ech_make_echconfig()`` is for use by command line or other key
 management tools, for example the ``openssl ech`` command documented
 [here](https://github.com/sftcd/openssl/blob/ECH-draft-13c/doc/man1/openssl-ech.pod.in).
 
@@ -201,7 +198,7 @@ loaded, and one to flush keys that are older than ``age`` seconds.
 
 ```c
 int SSL_CTX_ech_server_get_key_status(SSL_CTX *ctx, int *numkeys);
-int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, unsigned int age);
+int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, time_t age);
 ```
 
 ### Split-mode handling
@@ -257,7 +254,7 @@ expose which web site was being accessed. Similarly, if the TLS server
 certificate for one web site were significantly larger or smaller than others,
 message sizes could reveal which web site was being visited.  For these
 reasons, we provide a way to enable additional ECH-specific padding of the
-Certifiate, CertificateVerify and EncryptedExtensions messages sent from the
+Certificate, CertificateVerify and EncryptedExtensions messages sent from the
 server to the client during the handshake.
 
 To enable ECH-specific padding, one makes a call to:
