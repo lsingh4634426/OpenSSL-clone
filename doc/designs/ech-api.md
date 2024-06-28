@@ -124,7 +124,8 @@ int OSSL_ECH_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
                             unsigned char *priv, size_t *privlen,
                             uint16_t echversion, uint16_t max_name_length,
                             const char *public_name, OSSL_HPKE_SUITE suite,
-                            const unsigned char *extvals, size_t extlen);
+                            const unsigned char *extvals, size_t extlen,
+                            OSSL_LIB_CTX *libctx, const char *propq);
 ```
 
 The `echconfig` and `priv` buffer outputs are allocated by the caller
