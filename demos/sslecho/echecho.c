@@ -169,7 +169,7 @@ int main(int argc, char **argv)
 
     char *rem_server_ip = NULL;
 
-    struct sockaddr_in addr;
+    struct sockaddr_in addr = { 0 };
     unsigned int addr_len = sizeof(addr);
 
     char *outer_sni = NULL, *inner_sni = NULL;
