@@ -602,7 +602,7 @@ static int get_ocsp_resp_from_responder(SSL *s, tlsextstatusctx *srctx,
     *sk_resp = sk_OCSP_RESPONSE_new_null();
 
     SSL_get0_chain_certs(s, &server_certs);
-    if (server_certs != NULL && (SSL_version(s) >= TLS1_3_VERSION)) {
+    if (server_certs != NULL && SSL_version(s) >= TLS1_3_VERSION) {
         /* certificate chain is available */
         num = sk_X509_num(server_certs);
     }
@@ -630,6 +630,7 @@ static int get_ocsp_resp_from_responder(SSL *s, tlsextstatusctx *srctx,
 
         resp = NULL;
         ret = get_ocsp_resp_from_responder_single(s, x, srctx, &resp);
+        /* add response to stack; skip if no response was received */
         if (ret == SSL_TLSEXT_ERR_OK && resp != NULL)
             sk_OCSP_RESPONSE_insert(*sk_resp, resp, -1);
     }
@@ -656,7 +657,7 @@ static int cert_status_cb(SSL *s, void *arg)
         BIO_puts(bio_err, "cert_status: callback called\n");
 
     if (srctx->skrespin != NULL) {
-
+        /* reading as many responses as files given */
         sk_resp = sk_OCSP_RESPONSE_new_reserve(NULL,
                                                sk_OPENSSL_STRING_num(srctx->skrespin));
 
@@ -937,7 +938,8 @@ const OPTIONS s_server_options[] = {
 
 #ifndef OPENSSL_NO_OCSP
     OPT_SECTION("OCSP"),
-    {"status", OPT_STATUS, '-', "Request certificate status from server"},
+    {"status", OPT_STATUS, '-',
+     "Provide certificate status response(s) if requested by client"},
     {"status_verbose", OPT_STATUS_VERBOSE, '-',
      "Print more output in certificate status callback"},
     {"status_timeout", OPT_STATUS_TIMEOUT, 'n',

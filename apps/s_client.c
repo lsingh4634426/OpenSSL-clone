@@ -111,6 +111,7 @@ static SSL_SESSION *psksess = NULL;
 static void print_stuff(BIO *berr, SSL *con, int full);
 #ifndef OPENSSL_NO_OCSP
 static int ocsp_resp_cb(SSL *s, void *arg);
+static void print_ocsp_response(BIO* bp, OCSP_RESPONSE *rsp);
 #endif
 static int ldap_ExtendedResponse_parse(const char *buf, long rem);
 static int is_dNS_name(const char *host);
@@ -3643,30 +3644,22 @@ static int ocsp_resp_cb(SSL *s, void *arg)
     if (SSL_version(s) == TLS1_3_VERSION) {
         SSL_get_tlsext_status_ocsp_resp_ex(s, &sk_resp);
 
-        BIO_puts(arg, "OCSP response: ");
+        BIO_puts(arg, "OCSP responses: ");
 
         if (sk_resp == NULL) {
-            BIO_puts(arg, "no response sent\n");
+            BIO_puts(arg, "no responses sent\n");
             return 1;
         }
 
         num = sk_OCSP_RESPONSE_num(sk_resp);
 
         BIO_printf(arg, "number of responses: %d", num);
-        for (i = 0; i < num; i++) {
-            rsp = sk_OCSP_RESPONSE_value(sk_resp, i);
-            if (rsp == NULL) {
-                BIO_puts(arg, "response parse error\n");
-                return 0;
-            }
-            BIO_puts(arg, "\n-----BEGIN OCSP RESPONSE-----\n");
-            OCSP_RESPONSE_print(arg, rsp, 0);
-            BIO_puts(arg, "-----END  OCSP RESPONSE-----\n");
-        }
+        for (i = 0; i < num; i++)
+            print_ocsp_response(arg, sk_OCSP_RESPONSE_value(sk_resp, i));
     } else {
         const unsigned char *p;
-        int len;
-        len = SSL_get_tlsext_status_ocsp_resp(s, &p);
+        int len = SSL_get_tlsext_status_ocsp_resp(s, &p);
+
         BIO_puts(arg, "OCSP response: ");
         if (p == NULL) {
             BIO_puts(arg, "no response sent\n");
@@ -3678,12 +3671,22 @@ static int ocsp_resp_cb(SSL *s, void *arg)
             BIO_dump_indent(arg, (char *)p, len, 4);
             return 0;
         }
-        BIO_puts(arg, "\n-----BEGIN OCSP RESPONSE-----\n");
-        OCSP_RESPONSE_print(arg, rsp, 0);
-        BIO_puts(arg, "-----END  OCSP RESPONSE-----\n");
+        print_ocsp_response(arg, rsp);
     }
 
     return 1;
+}
+
+static void print_ocsp_response(BIO* bp, OCSP_RESPONSE *rsp)
+{
+    if (rsp == NULL) {
+        BIO_puts(bp, "no response error\n");
+        return;
+    }
+
+    BIO_puts(bp, "\n-----BEGIN OCSP RESPONSE-----\n");
+    OCSP_RESPONSE_print(bp, rsp, 0);
+    BIO_puts(bp, "-----END  OCSP RESPONSE-----\n");
 }
 # endif
 

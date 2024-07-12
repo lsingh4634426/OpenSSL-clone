@@ -1015,16 +1015,14 @@ static int check_revocation(X509_STORE_CTX *ctx)
         /*
          * certificate status checking with OCSP
          */
-        if (ocsp_check_all_enabled) {
+        if (ocsp_check_all_enabled)
             last = sk_X509_num(ctx->chain) - 1;
-        } else {
-            last = 0;
-        }
 
         for (i = 0; i <= last; i++) {
             ctx->error_depth = i;
             ctx->current_cert = sk_X509_value(ctx->chain, i);
 
+            /* skip if cert is apparently self-signed */
             if (ctx->current_cert->ex_flags & EXFLAG_SS)
                 continue;
 
@@ -1035,9 +1033,9 @@ static int check_revocation(X509_STORE_CTX *ctx)
              * can stop here.
              */
             if (ok == V_OCSP_CERTSTATUS_REVOKED) {
-                return verify_cb_ocsp(
-                    ctx, ctx->error != 0
-                    ? ctx->error : X509_V_ERR_OCSP_VERIFY_FAILED);
+                return verify_cb_ocsp(ctx, ctx->error != 0
+                                      ? ctx->error
+                                      : X509_V_ERR_OCSP_VERIFY_FAILED);
             }
 
             /*
@@ -1066,6 +1064,21 @@ static int check_revocation(X509_STORE_CTX *ctx)
                     return ok;
             }
         }
+
+        /*
+         * in the case that OCSP is only enabled for the server certificate
+         * and CRL for the complete chain, the rest of the chain has to be
+         * checked here
+         */
+        if (!ocsp_check_all_enabled && crl_check_all_enabled) {
+            last = sk_X509_num(ctx->chain) - 1;
+            for (i = 1; i <= last; i++) {
+                ctx->error_depth = i;
+                ok = check_cert_crl(ctx);
+                if (!ok)
+                    return ok;
+            }
+        }
 #endif
     } else {
         /*
@@ -1077,7 +1090,6 @@ static int check_revocation(X509_STORE_CTX *ctx)
             /* If checking CRL paths this isn't the EE certificate */
             if (ctx->parent != NULL)
                 return 1;
-            last = 0;
         }
         for (i = 0; i <= last; i++) {
             ctx->error_depth = i;
@@ -1093,20 +1105,18 @@ static int check_revocation(X509_STORE_CTX *ctx)
 static int check_cert_ocsp_resp(X509_STORE_CTX *ctx)
 {
     int cert_status, crl_reason;
-    int i, found = -1, ret;
+    int i, found = -1;
     OCSP_BASICRESP *bs = NULL;
     OCSP_RESPONSE *resp = NULL;
     OCSP_CERTID *cert_id = NULL;
     ASN1_GENERALIZEDTIME *rev, *thisupd, *nextupd;
-
-    ret = V_OCSP_CERTSTATUS_UNKNOWN;
+    int ret = V_OCSP_CERTSTATUS_UNKNOWN;
 
     ctx->current_issuer = X509_find_by_subject(ctx->chain,
                                                X509_get_issuer_name(ctx->current_cert));
 
-    if (sk_OCSP_RESPONSE_num(ctx->ocsp_resp) <= 0) {
+    if (sk_OCSP_RESPONSE_num(ctx->ocsp_resp) <= 0)
         return X509_V_ERR_OCSP_NO_RESPONSE;
-    }
 
     cert_id = OCSP_cert_to_id(NULL, ctx->current_cert, ctx->current_issuer);
 
@@ -1156,22 +1166,18 @@ static int check_cert_ocsp_resp(X509_STORE_CTX *ctx)
          * A OCSP stapling result will be accepted up to 5 minutes
          * after it expired!
          */
-        if (!OCSP_check_validity(thisupd, nextupd, 300L, -1L)) {
+        if (!OCSP_check_validity(thisupd, nextupd, 300L, -1L))
             ret = X509_V_ERR_OCSP_HAS_EXPIRED;
-        } else {
+        else
             ret = V_OCSP_CERTSTATUS_GOOD;
-        }
     } else {
         ret = cert_status;
     }
 
 end:
 
-    if (cert_id != NULL)
-        OCSP_CERTID_free(cert_id);
-
-    if (bs != NULL)
-        OCSP_BASICRESP_free(bs);
+    OCSP_CERTID_free(cert_id);
+    OCSP_BASICRESP_free(bs);
 
     return ret;
 }
@@ -2486,7 +2492,7 @@ void X509_STORE_CTX_set0_crls(X509_STORE_CTX *ctx, STACK_OF(X509_CRL) *sk)
 }
 
 #ifndef OPENSSL_NO_OCSP
-void X509_STORE_CTX_set_ocsp_resp(X509_STORE_CTX *ctx, STACK_OF(OCSP_RESPONSE) *sk)
+void X509_STORE_CTX_set0_ocsp_resp(X509_STORE_CTX *ctx, STACK_OF(OCSP_RESPONSE) *sk)
 {
     ctx->ocsp_resp = sk;
 }
