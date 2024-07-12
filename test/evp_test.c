@@ -1282,8 +1282,8 @@ static int cipher_test_enc(EVP_TEST *t, int enc, size_t out_misalign,
             goto err;
         }
     } else if (!enc && expected->mac_key && expected->tag) {
-       if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG,
-                                 expected->tag_len, expected->tag) <= 0) {
+        if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG,
+                               expected->tag_len, expected->tag) <= 0) {
             t->err = "TAG_SET_ERROR";
             goto err;
         }
