@@ -1255,6 +1255,7 @@ static int provider_cmp(const OSSL_PROVIDER * const *a,
 static int collect_providers(OSSL_PROVIDER *provider, void *stack)
 {
     STACK_OF(OSSL_PROVIDER) *provider_stack = stack;
+
     /*
      * If OK - result is the index of inserted data
      * Error - result is -1 or 0
@@ -1510,7 +1511,7 @@ typedef enum HELPLIST_CHOICE {
     OPT_STORE_LOADERS, OPT_PROVIDER_INFO, OPT_OBJECTS,
     OPT_SELECT_NAME,
 #ifndef OPENSSL_NO_DEPRECATED_3_0
-    OPT_ENGINES, 
+    OPT_ENGINES,
 #endif
     OPT_PROV_ENUM
 } HELPLIST_CHOICE;
@@ -1542,7 +1543,7 @@ const OPTIONS list_options[] = {
     {"mac-algorithms", OPT_MAC_ALGORITHMS, '-',
      "List of message authentication code algorithms"},
 #ifndef OPENSSL_NO_DEPRECATED_3_0
-    {"cipher-commands", OPT_CIPHER_COMMANDS, '-', 
+    {"cipher-commands", OPT_CIPHER_COMMANDS, '-',
     "List of cipher commands (deprecated)"},
 #endif
     {"cipher-algorithms", OPT_CIPHER_ALGORITHMS, '-',
@@ -1626,7 +1627,7 @@ int list_main(int argc, char **argv)
         switch (o) {
         case OPT_EOF:  /* Never hit, but suppresses warning */
         case OPT_ERR:
-opthelp:
+        opthelp:
             BIO_printf(bio_err, "%s: Use -help for summary.\n", prog);
             return 1;
         case OPT_HELP:
@@ -1739,7 +1740,7 @@ opthelp:
             BIO_printf(bio_out, "\n"); \
         } \
         cmd; \
-    } while(0)
+    } while(0) 
 
     if (todo.commands)
         MAYBE_ADD_NL(list_type(FT_general, one));
