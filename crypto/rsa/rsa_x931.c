@@ -20,7 +20,7 @@
 #include <openssl/objects.h>
 
 /*
- * X931 Embeds the hash inside the following data structure
+ * X9.31 Embeds the hash inside the following data structure
  *
  * header (4 bits = 0x6)
  * padding (consisting of zero or more 4 bit values of a sequence of 0xB,
@@ -30,7 +30,7 @@
  *         The 1st byte is related to a part number for a hash algorithm
  *         (See RSA_X931_hash_id()), followed by the fixed value 0xCC
  *
- * The RSA modulus size n (which for X931 is 1024 + 256*s) is the size of the data
+ * The RSA modulus size n (which for X9.31 is 1024 + 256*s) is the size of the data
  * structure, which determines the padding size.
  * i.e. len(padding) = n - len(header) - len(hash) - len(trailer)
  *
@@ -122,7 +122,7 @@ int RSA_padding_check_X931(unsigned char *to, int tlen,
 }
 
 /*
- * Translate between X931 hash ids and NIDs
+ * Translate between X9.31 hash ids and NIDs
  * The returned values relate to ISO/IEC 10118 part numbers which consist of
  * a hash algorithm and hash number. The returned values are used as the
  * first byte of the 'trailer'.
