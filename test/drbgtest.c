@@ -142,7 +142,7 @@ static int using_fips_rng(void)
     if (!TEST_ptr(prov))
         return 0;
     name = OSSL_PROVIDER_get0_name(prov);
-    return strstr(name, "OpenSSL FIPS Provider") != NULL;
+    return strstr(name, "FIPS Provider") != NULL;
 }
 
  /*
