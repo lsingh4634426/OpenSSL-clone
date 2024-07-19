@@ -77,7 +77,7 @@ extern "C" {
  * This is disabled by default.
  * Type: OSSL_PARAM_UTF8_STRING
  */
-# define OSSL_PROV_FIPS_PARAM_RSA_SIGN_X931_PAD_DISABLED  "rsa-sign-x931-pad-disabled"
+# define OSSL_PROV_FIPS_PARAM_RSA_SIGN_X931_PAD_DISABLED "rsa-sign-x931-pad-disabled"
 
 # ifdef __cplusplus
 }

@@ -67,8 +67,8 @@ const OPTIONS fipsinstall_options[] = {
      "Enable the run-time FIPS check for EMS during TLS1_PRF"},
     {"no_drbg_truncated_digests", OPT_DISALLOW_DRGB_TRUNC_DIGEST, '-',
      "Disallow truncated digests with Hash and HMAC DRBGs"},
-     {"rsa_sign_x931_disabled", OPT_DISALLOW_SIGNATURE_X931_PADDING, '-',
-      "Disallow X931 Padding for RSA signing"},
+    {"rsa_sign_x931_disabled", OPT_DISALLOW_SIGNATURE_X931_PADDING, '-',
+     "Disallow X931 Padding for RSA signing"},
     OPT_SECTION("Input"),
     {"in", OPT_IN, '<', "Input config file, used when verifying"},
 

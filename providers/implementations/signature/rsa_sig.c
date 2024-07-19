@@ -1320,7 +1320,7 @@ static int rsa_set_ctx_params(void *vprsactx, const OSSL_PARAM params[])
                 ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_KEY_LENGTH);
                 return 0;
             }
-            /* RSA Signing with X9.31 padding is not allowed in FIPS 140-3*/
+            /* RSA Signing with X9.31 padding is not allowed in FIPS 140-3 */
             if (!rsa_x931_padding_allowed(prsactx))
                 return 0;
 #endif
