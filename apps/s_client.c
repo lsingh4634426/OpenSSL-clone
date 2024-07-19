@@ -1210,6 +1210,7 @@ int s_client_main(int argc, char **argv)
             c_status_req = 1;
             X509_VERIFY_PARAM_set_flags(vpm, X509_V_FLAG_OCSP_RESP_CHECK);
             vpmtouched++;
+            break;
         case OPT_STATUS_OCSP_CHECK_ALL:
             c_status_req = 1;
             X509_VERIFY_PARAM_set_flags(vpm,
