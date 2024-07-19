@@ -1130,22 +1130,20 @@ static int check_cert_ocsp_resp(X509_STORE_CTX *ctx)
         found = OCSP_resp_find(bs, cert_id, -1);
         if (found >= 0)
             break;
+
+        OCSP_BASICRESP_free(bs);
+        bs = NULL;
     }
     if (found < 0)
         resp = NULL;
 
-    if (resp == NULL) {
+    if (resp == NULL || bs == NULL) {
         ret = X509_V_ERR_OCSP_NO_RESPONSE;
         goto end;
     }
 
     if (OCSP_response_status(resp) != OCSP_RESPONSE_STATUS_SUCCESSFUL) {
         ret = X509_V_ERR_OCSP_RESP_INVALID;
-        goto end;
-    }
-
-    if ((bs = OCSP_response_get1_basic(resp)) == NULL) {
-        ret = X509_V_ERR_OCSP_NO_RESPONSE;
         goto end;
     }
 
@@ -1177,7 +1175,8 @@ static int check_cert_ocsp_resp(X509_STORE_CTX *ctx)
 end:
 
     OCSP_CERTID_free(cert_id);
-    OCSP_BASICRESP_free(bs);
+    if (bs != NULL)
+        OCSP_BASICRESP_free(bs);
 
     return ret;
 }

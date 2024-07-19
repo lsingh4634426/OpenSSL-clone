@@ -4378,7 +4378,7 @@ int tls_construct_cert_status_body(SSL_CONNECTION *s, size_t chainidx, WPACKET *
          * certificate (chainidx=0) was requested, check if the stack contains an
          * OCSP response and get the first one
          * TODO: check if the first response on the stack is indeed the one for the
-         *       server certificate
+         *       server certificate. At the moment the issuer information is missing.
          */
         if (s->ext.ocsp.resp_ex != NULL && sk_OCSP_RESPONSE_num(s->ext.ocsp.resp_ex) > 0) {
             resp = sk_OCSP_RESPONSE_value(s->ext.ocsp.resp_ex, 0);

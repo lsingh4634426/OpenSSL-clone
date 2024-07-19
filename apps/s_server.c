@@ -602,11 +602,13 @@ static int get_ocsp_resp_from_responder(SSL *s, tlsextstatusctx *srctx,
     *sk_resp = sk_OCSP_RESPONSE_new_null();
 
     SSL_get0_chain_certs(s, &server_certs);
+    /*
+     * TODO: in future DTLS should also be considered
+     */
     if (server_certs != NULL && SSL_version(s) >= TLS1_3_VERSION) {
         /* certificate chain is available */
-        num = sk_X509_num(server_certs);
-    }
-    else {
+        num = sk_X509_num(server_certs) + 1;
+    } else {
         /*
          * certificate chain is not available,
          * set num to 1 for server certificate
@@ -616,8 +618,8 @@ static int get_ocsp_resp_from_responder(SSL *s, tlsextstatusctx *srctx,
 
     sk_OCSP_RESPONSE_reserve(*sk_resp, num);
 
-    for (i = -1; i < num - 1; i++) {
-        if (i == -1) {
+    for (i = 0; i < num; i++) {
+        if (i == 0) {
             /* get OCSP response for server certificate first */
             x = SSL_get_certificate(s);
         } else {
@@ -625,8 +627,14 @@ static int get_ocsp_resp_from_responder(SSL *s, tlsextstatusctx *srctx,
              * for each certificate in chain (except root) get
              * the OCSP response
              */
-            x = sk_X509_value(server_certs, i);
+            x = sk_X509_value(server_certs, i-1);
         }
+
+        /*
+         * OpenSSL servers with TLS 1.0–1.2 can be configured with no certificate
+         */
+        if (x == NULL)
+            return SSL_TLSEXT_ERR_OK;
 
         resp = NULL;
         ret = get_ocsp_resp_from_responder_single(s, x, srctx, &resp);
