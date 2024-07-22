@@ -189,6 +189,7 @@ static const OSSL_PARAM settable_ctx_params[] = {
     OSSL_PARAM_int("key-check", NULL),
     OSSL_PARAM_int("digest-check", NULL),
     OSSL_PARAM_int("ems_check", NULL),
+    OSSL_PARAM_int("encrypt-check", NULL),
     OSSL_PARAM_END
 };
 
@@ -251,6 +252,18 @@ static int kdf_check_fips_approved(EVP_KDF_CTX *ctx, EVP_TEST *t)
     params[0] = OSSL_PARAM_construct_int(OSSL_KDF_PARAM_FIPS_APPROVED_INDICATOR,
                                          &approved);
     if (!EVP_KDF_CTX_get_params(ctx, params))
+        return 0;
+    return check_fips_approved(t, approved);
+}
+
+static int cipher_check_fips_approved(EVP_CIPHER_CTX *ctx, EVP_TEST *t)
+{
+    OSSL_PARAM params[2] = { OSSL_PARAM_END, OSSL_PARAM_END };
+    int approved = 1;
+
+    params[0] = OSSL_PARAM_construct_int(OSSL_CIPHER_PARAM_FIPS_APPROVED_INDICATOR,
+                                         &approved);
+    if (!EVP_CIPHER_CTX_get_params(ctx, params))
         return 0;
     return check_fips_approved(t, approved);
 }
@@ -838,6 +851,7 @@ typedef struct cipher_data_st {
     unsigned char *mac_key;
     size_t mac_key_len;
     const char *xts_standard;
+    STACK_OF(OPENSSL_STRING) *init_controls; /* collection of controls */
 } CIPHER_DATA;
 
 
@@ -889,6 +903,7 @@ static int cipher_test_init(EVP_TEST *t, const char *alg)
     if (!TEST_ptr(cdat = OPENSSL_zalloc(sizeof(*cdat))))
         return 0;
 
+    cdat->init_controls = sk_OPENSSL_STRING_new_null();
     cdat->cipher = cipher;
     cdat->fetched_cipher = fetched_cipher;
     cdat->enc = -1;
@@ -928,6 +943,7 @@ static void cipher_test_cleanup(EVP_TEST *t)
     OPENSSL_free(cdat->tag);
     OPENSSL_free(cdat->mac_key);
     EVP_CIPHER_free(cdat->fetched_cipher);
+    ctrlfree(cdat->init_controls);
 }
 
 static int cipher_test_parse(EVP_TEST *t, const char *keyword,
@@ -1010,11 +1026,14 @@ static int cipher_test_parse(EVP_TEST *t, const char *keyword,
         cdat->xts_standard = value;
         return 1;
     }
+    if (strcmp(keyword, "CtrlInit") == 0)
+        return ctrladd(cdat->init_controls, value);
     return 0;
 }
 
 static int cipher_test_enc(EVP_TEST *t, int enc, size_t out_misalign,
-                           size_t inp_misalign, int frag, int in_place)
+                           size_t inp_misalign, int frag, int in_place,
+                           const OSSL_PARAM initparams[])
 {
     CIPHER_DATA *expected = t->data;
     unsigned char *in, *expected_out, *tmp = NULL;
@@ -1064,7 +1083,8 @@ static int cipher_test_enc(EVP_TEST *t, int enc, size_t out_misalign,
         in = memcpy(tmp + out_misalign + in_len + 2 * EVP_MAX_BLOCK_LENGTH +
                     inp_misalign, in, in_len);
     }
-    if (!EVP_CipherInit_ex(ctx_base, expected->cipher, NULL, NULL, NULL, enc)) {
+    if (!EVP_CipherInit_ex2(ctx_base, expected->cipher, NULL, NULL, enc,
+                            initparams)) {
         t->err = "CIPHERINIT_ERROR";
         goto err;
     }
@@ -1338,6 +1358,11 @@ static int cipher_test_enc(EVP_TEST *t, int enc, size_t out_misalign,
         t->err = "CIPHERFINAL_ERROR";
         goto err;
     }
+    if (!cipher_check_fips_approved(ctx, t)) {
+        t->err = "FIPSAPPROVED_ERROR";
+        goto err;
+    }
+
     if (!enc && expected->tls_aad) {
         if (expected->tls_version >= TLS1_1_VERSION
             && (EVP_CIPHER_is_a(expected->cipher, "AES-128-CBC-HMAC-SHA1")
@@ -1397,6 +1422,8 @@ static int cipher_test_run(EVP_TEST *t)
     CIPHER_DATA *cdat = t->data;
     int rv, frag, fragmax, in_place;
     size_t out_misalign, inp_misalign;
+    OSSL_PARAM initparams[2] = { OSSL_PARAM_END, OSSL_PARAM_END };
+    size_t params_n = 0;
 
     TEST_info("RUNNING TEST FOR CIPHER %s\n", EVP_CIPHER_get0_name(cdat->cipher));
     if (!cdat->key) {
@@ -1413,6 +1440,12 @@ static int cipher_test_run(EVP_TEST *t)
     if (cdat->aead && cdat->tag == NULL && !cdat->tls_aad) {
         t->err = "NO_TAG";
         return 0;
+    }
+
+    if (sk_OPENSSL_STRING_num(cdat->init_controls) > 0) {
+        if (!ctrl2params(t, cdat->init_controls, NULL,
+                         initparams, OSSL_NELEM(initparams), &params_n))
+            return 0;
     }
 
     fragmax = (cipher_test_valid_fragmentation(cdat) == 0) ? 0 : 1;
@@ -1446,31 +1479,26 @@ static int cipher_test_run(EVP_TEST *t)
                     }
                     if (cdat->enc) {
                         rv = cipher_test_enc(t, 1, out_misalign, inp_misalign,
-                                             frag, in_place);
-                        /* Not fatal errors: return */
-                        if (rv != 1) {
-                            if (rv < 0)
-                                return 0;
-                            return 1;
-                        }
+                                             frag, in_place, initparams);
+                        if (rv != 1)
+                            goto end;
                     }
                     if (cdat->enc != 1) {
                         rv = cipher_test_enc(t, 0, out_misalign, inp_misalign,
-                                             frag, in_place);
-                        /* Not fatal errors: return */
-                        if (rv != 1) {
-                            if (rv < 0)
-                                return 0;
-                            return 1;
-                        }
+                                             frag, in_place, initparams);
+                        if (rv != 1)
+                            goto end;
                     }
                 }
             }
         }
     }
+    ctrl2params_free(initparams, params_n, 0);
     t->aux_err = NULL;
-
     return 1;
+ end:
+    ctrl2params_free(initparams, params_n, 0);
+    return (rv < 0 ? 0 : 1);
 }
 
 static const EVP_TEST_METHOD cipher_test_method = {

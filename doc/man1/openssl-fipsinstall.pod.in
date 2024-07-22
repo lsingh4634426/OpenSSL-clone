@@ -30,6 +30,7 @@ B<openssl fipsinstall>
 [B<-sshkdf_digest_check>]
 [B<-sskdf_digest_check>]
 [B<-x963kdf_digest_check>]
+[B<-tdes_encrypt_disabled>]
 [B<-self_test_onload>]
 [B<-self_test_oninstall>]
 [B<-corrupt_desc> I<selftest_description>]
@@ -231,6 +232,12 @@ See NIST SP 800-56Cr2 for details.
 Configure the module to enable a run-time digest check when deriving a key by
 X963KDF.
 See NIST SP 800-131Ar2 for details.
+
+=item B<-tdes_encrypt_disabled>
+
+Configure the module to not allow Triple-DES encryption.
+Triple-DES decryption is still allowed for legacy purposes.
+See SP800-131Ar2 for details.
 
 =item B<-self_test_onload>
 
