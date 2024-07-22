@@ -13,5 +13,6 @@
 int FIPS_security_check_enabled(OSSL_LIB_CTX *libctx);
 int FIPS_tls_prf_ems_check(OSSL_LIB_CTX *libctx);
 int FIPS_restricted_drbg_digests_enabled(OSSL_LIB_CTX *libctx);
+int FIPS_rsa_sign_x931_disallowed(OSSL_LIB_CTX *libctx);
 
 #endif

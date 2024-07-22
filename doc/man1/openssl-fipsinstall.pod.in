@@ -24,6 +24,7 @@ B<openssl fipsinstall>
 [B<-no_security_checks>]
 [B<-ems_check>]
 [B<-no_drbg_truncated_digests>]
+[B<-rsa_sign_x931_disabled>]
 [B<-self_test_onload>]
 [B<-self_test_oninstall>]
 [B<-corrupt_desc> I<selftest_description>]
@@ -189,6 +190,11 @@ See RFC 7627 for information related to EMS.
 
 Configure the module to not allow truncated digests to be used with Hash and
 HMAC DRBGs.  See FIPS 140-3 IG D.R for details.
+
+=item B<-rsa_sign_x931_disabled>
+
+Configure the module to not allow X9.31 padding be used when signing with RSA.
+See FIPS 140-3 IG C.K for details.
 
 =item B<-self_test_onload>
 

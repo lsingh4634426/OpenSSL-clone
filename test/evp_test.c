@@ -189,6 +189,7 @@ static const OSSL_PARAM settable_ctx_params[] = {
     OSSL_PARAM_int("key-check", NULL),
     OSSL_PARAM_int("digest-check", NULL),
     OSSL_PARAM_int("ems_check", NULL),
+    OSSL_PARAM_int("sign-x931-pad-check", NULL),
     OSSL_PARAM_END
 };
 
