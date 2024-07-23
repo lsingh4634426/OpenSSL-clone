@@ -456,10 +456,11 @@ static int grow_hashtable(HT *h, size_t oldsize)
     for (oldi = 0; oldi < h->wpd.neighborhood_len; oldi++) {
         PREFETCH_NEIGHBORHOOD(oldmd->neighborhoods[oldi + 1]);
         for (oldj = 0; oldj < NEIGHBORHOOD_LEN; oldj++) {
-            oldv = oldmd->neighborhoods[oldi].entries[oldj].value;
+            oldv = ossl_rcu_deref(&oldmd->neighborhoods[oldi].entries[oldj].value);
             if (oldv == NULL)
                 continue;
-            oldhash = oldmd->neighborhoods[oldi].entries[oldj].hash;
+            CRYPTO_atomic_load(&oldmd->neighborhoods[oldi].entries[oldj].hash,
+                           &oldhash, h->atomic_lock);
             newi = oldhash & newmd->neighborhood_mask;
             rehashed = 0;
             for (newj = 0; newj < NEIGHBORHOOD_LEN; newj++) {
