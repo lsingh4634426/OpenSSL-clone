@@ -113,6 +113,7 @@ static ossl_unused uint64_t fnv1a_hash(uint8_t *key, size_t len)
 struct ht_internal_value_st {
     HT_VALUE value;
     HT *ht;
+    char *last_op;
 };
 
 struct ht_neighborhood_entry_st {
@@ -465,6 +466,7 @@ static int grow_hashtable(HT *h, size_t oldsize)
                 if (newmd->neighborhoods[newi].entries[newj].value == NULL) {
                     newmd->neighborhoods[newi].entries[newj].value = oldv;
                     newmd->neighborhoods[newi].entries[newj].hash = oldhash;
+                    oldv->last_op = "rehashed";
                     rehashed = 1;
                     break;
                 }
@@ -540,6 +542,7 @@ static int ossl_ht_insert_locked(HT *h, uint64_t hash,
                 return 0;
             }
             /* Do a replacement */
+            newval->last_op = "replace";
             CRYPTO_atomic_store(&md->neighborhoods[neigh_idx].entries[j].hash,
                                 hash, h->atomic_lock);
             *olddata = (HT_VALUE *)md->neighborhoods[neigh_idx].entries[j].value;
@@ -553,6 +556,7 @@ static int ossl_ht_insert_locked(HT *h, uint64_t hash,
     /* If we get to here, its just an insert */
     if (empty_idx == SIZE_MAX)
         return -1; /* out of space */
+    newval->last_op = "insert";
     h->wpd.value_count++;
     CRYPTO_atomic_store(&md->neighborhoods[neigh_idx].entries[empty_idx].hash,
                         hash, h->atomic_lock);
@@ -577,7 +581,7 @@ static struct ht_internal_value_st *alloc_new_value(HT *h, HT_KEY *key,
     tmp->ht = h;
     tmp->value.value = data;
     tmp->value.type_id = type;
-
+    tmp->last_op = "new";
     return tmp;
 }
 
@@ -699,6 +703,7 @@ int ossl_ht_delete(HT *h, HT_KEY *key)
             v = (struct ht_internal_value_st *)md->neighborhoods[neigh_idx].entries[j].value;
             ossl_rcu_assign_ptr(&md->neighborhoods[neigh_idx].entries[j].value,
                                 &nv);
+            v->last_op = "delete";
             /* confirm that the value is NULL */
             if (md->neighborhoods[neigh_idx].entries[j].value != NULL) {
                 fprintf(stderr, "DELETED ENTRY IS NOT NULL\n");
@@ -722,7 +727,7 @@ void ossl_ht_dump(HT *h, void (*dump_cb)(HT_VALUE *val))
     for (i = 0; i <= h->md->neighborhood_mask; i++) {
         fprintf(stderr, "NEIGHBORHOOD %lu:\n", i);
         for (j = 0; j < NEIGHBORHOOD_LEN; j++) {
-            fprintf(stderr, "\tNEIGHBORHOOD ENTRY:%lu HASH: %lu VALUE PTR: %p\n\t\t", j, h->md->neighborhoods[i].entries[j].hash, h->md->neighborhoods[i].entries[j].value);
+            fprintf(stderr, "\tNEIGHBORHOOD ENTRY:%lu HASH: %lu VALUE PTR: %p LAST OP: %s\n\t\t", j, h->md->neighborhoods[i].entries[j].hash, h->md->neighborhoods[i].entries[j].value, h->md->neighborhoods[i].entries[j].value && h->md->neighborhoods[i].entries[j].value->last_op ? h->md->neighborhoods[i].entries[j].value->last_op : "Unknown");
             if (h->md->neighborhoods[i].entries[j].value)
                 dump_cb((HT_VALUE *)h->md->neighborhoods[i].entries[j].value);
             else
