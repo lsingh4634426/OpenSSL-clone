@@ -470,6 +470,7 @@ end:
 typedef struct test_mt_entry {
     int in_table;
     int pending_delete;
+    uint64_t hash;
 } TEST_MT_ENTRY;
 
 static HT *m_ht = NULL;
@@ -619,6 +620,15 @@ static void do_mt_hash_work(void)
     }
 }
 
+static void print_value(HT_VALUE *v)
+{
+    TEST_MT_ENTRY *m = ossl_ht_mt_TEST_MT_ENTRY_from_value(v);
+
+    size_t index = ((uintptr_t)m-(uintptr_t)test_mt_entries)/sizeof(TEST_MT_ENTRY);
+
+    fprintf(stderr, "ptr:%p, index: %lu in_table:%d, pending_delete:%d hash: %lu\n", m, index, m->in_table, m->pending_delete, m->hash);
+}
+
 static int test_hashtable_multithread(void)
 {
     HT_CONFIG hash_conf = {
@@ -630,6 +640,8 @@ static int test_hashtable_multithread(void)
     int ret = 0;
     thread_t workers[4];
     int i;
+    MTKEY key;
+
 #ifdef MEASURE_HASH_PERFORMANCE
     struct timeval start, end, delta;
 #endif
@@ -642,6 +654,13 @@ static int test_hashtable_multithread(void)
 
     if (!TEST_ptr(m_ht))
         goto end;
+
+    HT_INIT_KEY(&key);
+    for (i = 0; i < TEST_MT_POOL_SZ; i++) {
+        HT_KEY_RESET(&key);
+        HT_SET_KEY_FIELD(&key, index, i);
+        test_mt_entries[i].hash = ossl_ht_hash(m_ht, TO_HT_KEY(&key));
+    }
 
     worker_lock = CRYPTO_THREAD_lock_new();
     if (worker_lock == NULL)
@@ -685,6 +704,7 @@ shutdown:
 
 end_free:
     shutting_down = 1;
+    ossl_ht_dump(m_ht, print_value);
     ossl_ht_free(m_ht);
 end:
     return ret;

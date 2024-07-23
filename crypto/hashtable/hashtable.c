@@ -47,6 +47,7 @@
  */
 
 #include <string.h>
+#include <assert.h>
 #include <internal/rcu.h>
 #include <internal/hashtable.h>
 #include <openssl/rand.h>
@@ -518,7 +519,7 @@ static int ossl_ht_insert_locked(HT *h, uint64_t hash,
                                  struct ht_internal_value_st *newval,
                                  HT_VALUE **olddata)
 {
-    struct ht_mutable_data_st *md = h->md;
+    struct ht_mutable_data_st *md = ossl_rcu_deref(&h->md);
     uint64_t neigh_idx = hash & md->neighborhood_mask;
     size_t j;
     uint64_t ihash;
@@ -590,6 +591,7 @@ int ossl_ht_insert(HT *h, HT_KEY *key, HT_VALUE *data, HT_VALUE **olddata)
     struct ht_internal_value_st *newval = NULL;
     uint64_t hash;
     int rc = 0;
+    int i;
 
     if (data->value == NULL)
         goto out;
@@ -604,6 +606,15 @@ int ossl_ht_insert(HT *h, HT_KEY *key, HT_VALUE *data, HT_VALUE **olddata)
      */
     hash = h->config.ht_hash_fn(key->keybuf, key->keysize);
 
+    if (hash == 0) {
+        fprintf(stderr, "HASH EVALUATED TO 0 on key:!\n");
+        fprintf(stderr, "KEYSIZE %lu, KEYBUF %p\n", key->keysize, key->keybuf);
+        for (i=0; i < key->keysize; i++) {
+            fprintf(stderr, "%02x", key->keybuf[i]);
+        }
+        fprintf(stderr, "\n");
+        assert(0);
+    }
 try_again:
     rc = ossl_ht_insert_locked(h, hash, newval, olddata);
 
@@ -661,11 +672,22 @@ int ossl_ht_delete(HT *h, HT_KEY *key)
     uint64_t hash;
     uint64_t neigh_idx;
     size_t j;
+    int i;
     struct ht_internal_value_st *v = NULL;
     HT_VALUE *nv = NULL;
     int rc = 0;
 
     hash = h->config.ht_hash_fn(key->keybuf, key->keysize);
+
+    if (hash == 0) {
+        fprintf(stderr, "HASH EVALUATED TO 0 on key:!\n");
+        fprintf(stderr, "KEYSIZE %lu, KEYBUF %p\n", key->keysize, key->keybuf);
+        for (i=0; i < key->keysize; i++) {
+            fprintf(stderr, "%02x", key->keybuf[i]);
+        }
+        fprintf(stderr, "\n");
+        assert(0);
+    }
 
     neigh_idx = hash & md->neighborhood_mask;
     PREFETCH_NEIGHBORHOOD(md->neighborhoods[neigh_idx]);
@@ -677,6 +699,11 @@ int ossl_ht_delete(HT *h, HT_KEY *key)
             v = (struct ht_internal_value_st *)md->neighborhoods[neigh_idx].entries[j].value;
             ossl_rcu_assign_ptr(&md->neighborhoods[neigh_idx].entries[j].value,
                                 &nv);
+            /* confirm that the value is NULL */
+            if (md->neighborhoods[neigh_idx].entries[j].value != NULL) {
+                fprintf(stderr, "DELETED ENTRY IS NOT NULL\n");
+                assert(0);
+            }
             rc = 1;
             break;
         }
@@ -688,3 +715,24 @@ int ossl_ht_delete(HT *h, HT_KEY *key)
     return rc;
 }
 
+void ossl_ht_dump(HT *h, void (*dump_cb)(HT_VALUE *val))
+{
+    size_t i, j;
+
+    for (i = 0; i <= h->md->neighborhood_mask; i++) {
+        fprintf(stderr, "NEIGHBORHOOD %lu:\n", i);
+        for (j = 0; j < NEIGHBORHOOD_LEN; j++) {
+            fprintf(stderr, "\tNEIGHBORHOOD ENTRY:%lu HASH: %lu VALUE PTR: %p\n\t\t", j, h->md->neighborhoods[i].entries[j].hash, h->md->neighborhoods[i].entries[j].value);
+            if (h->md->neighborhoods[i].entries[j].value)
+                dump_cb((HT_VALUE *)h->md->neighborhoods[i].entries[j].value);
+            else
+                fprintf(stderr, "NO VALUE\n");
+        }
+    }
+}
+
+
+uint64_t ossl_ht_hash(HT *h, HT_KEY *key)
+{
+    return h->config.ht_hash_fn(key->keybuf, key->keysize);
+}
