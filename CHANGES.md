@@ -106,6 +106,15 @@ OpenSSL 3.4
 
    *Watson Ladd*
 
+ * Added support for TLS 1.3 OCSP multi-stapling for server certs.
+   Added options `-ocsp_check_leaf` and `-ocsp_check_all` for checking either
+   only the server certificate (leaf) or the complete chain to the app
+   `s_client`.
+   Multiple response files can now be provided via the `-status_file` option
+   to the app `s_server`.
+
+   *Michael Krueger, Martin Rauch*
+
 OpenSSL 3.3
 -----------
 

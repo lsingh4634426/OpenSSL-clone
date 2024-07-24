@@ -449,8 +449,8 @@ static int ssl_servername_cb(SSL *s, int *ad, void *arg)
 /* Structure passed to cert status callback */
 typedef struct tlsextstatusctx_st {
     int timeout;
-    /* File to load OCSP Response from (or NULL if no file) */
-    char *respin;
+    /* List of filenames, from which we are loading each OCSP Response to staple during handshake (or NULL if no file) */
+    STACK_OF(OPENSSL_STRING) *skrespin;
     /* Default responder to use */
     char *host, *path, *port;
     char *proxy, *no_proxy;
@@ -458,7 +458,7 @@ typedef struct tlsextstatusctx_st {
     int verbose;
 } tlsextstatusctx;
 
-static tlsextstatusctx tlscstatp = { -1 };
+static tlsextstatusctx tlscstatp = { -1, NULL };
 
 #ifndef OPENSSL_NO_OCSP
 
@@ -469,14 +469,15 @@ static tlsextstatusctx tlscstatp = { -1 };
  * the OCSP certificate IDs and minimise the number of OCSP responses by caching
  * them until they were considered "expired".
  */
-static int get_ocsp_resp_from_responder(SSL *s, tlsextstatusctx *srctx,
-                                        OCSP_RESPONSE **resp)
+static int get_ocsp_resp_from_responder_single(SSL *s, X509 *x,
+                                               tlsextstatusctx *srctx,
+                                               OCSP_RESPONSE **resp)
 {
     char *host = NULL, *port = NULL, *path = NULL;
     char *proxy = NULL, *no_proxy = NULL;
     int use_ssl;
     STACK_OF(OPENSSL_STRING) *aia = NULL;
-    X509 *x = NULL, *cert;
+    X509 *cert;
     X509_NAME *iname;
     STACK_OF(X509) *chain = NULL;
     SSL_CTX *ssl_ctx;
@@ -489,7 +490,6 @@ static int get_ocsp_resp_from_responder(SSL *s, tlsextstatusctx *srctx,
     int i;
 
     /* Build up OCSP query from server certificate */
-    x = SSL_get_certificate(s);
     iname = X509_get_issuer_name(x);
     aia = X509_get1_ocsp(x);
     if (aia != NULL) {
@@ -554,6 +554,7 @@ static int get_ocsp_resp_from_responder(SSL *s, tlsextstatusctx *srctx,
     SSL_get_tlsext_status_exts(s, &exts);
     for (i = 0; i < sk_X509_EXTENSION_num(exts); i++) {
         X509_EXTENSION *ext = sk_X509_EXTENSION_value(exts, i);
+
         if (!OCSP_REQUEST_add_ext(req, ext, -1))
             goto err;
     }
@@ -586,6 +587,65 @@ static int get_ocsp_resp_from_responder(SSL *s, tlsextstatusctx *srctx,
     return ret;
 }
 
+static int get_ocsp_resp_from_responder(SSL *s, tlsextstatusctx *srctx,
+                                        STACK_OF(OCSP_RESPONSE) **sk_resp)
+{
+    X509 *x = NULL;
+    int ret = SSL_TLSEXT_ERR_NOACK;
+    int i, num = 1;
+    STACK_OF(X509) *server_certs = NULL;
+    OCSP_RESPONSE *resp = NULL;
+
+    if (*sk_resp != NULL)
+        sk_OCSP_RESPONSE_pop_free(*sk_resp, OCSP_RESPONSE_free);
+
+    *sk_resp = sk_OCSP_RESPONSE_new_null();
+
+    SSL_get0_chain_certs(s, &server_certs);
+    /*
+     * TODO: in future DTLS should also be considered
+     */
+    if (server_certs != NULL && SSL_version(s) >= TLS1_3_VERSION) {
+        /* certificate chain is available */
+        num = sk_X509_num(server_certs) + 1;
+    } else {
+        /*
+         * certificate chain is not available,
+         * set num to 1 for server certificate
+         */
+        num = 1;
+    }
+
+    sk_OCSP_RESPONSE_reserve(*sk_resp, num);
+
+    for (i = 0; i < num; i++) {
+        if (i == 0) {
+            /* get OCSP response for server certificate first */
+            x = SSL_get_certificate(s);
+        } else {
+            /*
+             * for each certificate in chain (except root) get
+             * the OCSP response
+             */
+            x = sk_X509_value(server_certs, i-1);
+        }
+
+        /*
+         * OpenSSL servers with TLS 1.0–1.2 can be configured with no certificate
+         */
+        if (x == NULL)
+            return SSL_TLSEXT_ERR_OK;
+
+        resp = NULL;
+        ret = get_ocsp_resp_from_responder_single(s, x, srctx, &resp);
+        /* add response to stack; skip if no response was received */
+        if (ret == SSL_TLSEXT_ERR_OK && resp != NULL)
+            sk_OCSP_RESPONSE_insert(*sk_resp, resp, -1);
+    }
+
+    return SSL_TLSEXT_ERR_OK;
+}
+
 /*
  * Certificate Status callback. This is called when a client includes a
  * certificate status request extension. The response is either obtained from a
@@ -595,39 +655,53 @@ static int cert_status_cb(SSL *s, void *arg)
 {
     tlsextstatusctx *srctx = arg;
     OCSP_RESPONSE *resp = NULL;
-    unsigned char *rspder = NULL;
-    int rspderlen;
+    STACK_OF(OCSP_RESPONSE) *sk_resp = NULL;
+    char *respfile = NULL;
     int ret = SSL_TLSEXT_ERR_ALERT_FATAL;
+    int i;
+    BIO *derbio;
 
     if (srctx->verbose)
         BIO_puts(bio_err, "cert_status: callback called\n");
 
-    if (srctx->respin != NULL) {
-        BIO *derbio = bio_open_default(srctx->respin, 'r', FORMAT_ASN1);
-        if (derbio == NULL) {
-            BIO_puts(bio_err, "cert_status: Cannot open OCSP response file\n");
-            goto err;
-        }
-        resp = d2i_OCSP_RESPONSE_bio(derbio, NULL);
-        BIO_free(derbio);
-        if (resp == NULL) {
-            BIO_puts(bio_err, "cert_status: Error reading OCSP response\n");
-            goto err;
+    if (srctx->skrespin != NULL) {
+        /* reading as many responses as files given */
+        sk_resp = sk_OCSP_RESPONSE_new_reserve(NULL,
+                                               sk_OPENSSL_STRING_num(srctx->skrespin));
+
+        for (i = 0; i < sk_OPENSSL_STRING_num(srctx->skrespin); i++) {
+            respfile = sk_OPENSSL_STRING_value(srctx->skrespin, i);
+
+            derbio = bio_open_default(respfile, 'r', FORMAT_ASN1);
+
+            if (derbio == NULL) {
+                BIO_puts(bio_err, "cert_status: Cannot open OCSP response file\n");
+                goto err;
+            }
+            resp = d2i_OCSP_RESPONSE_bio(derbio, NULL);
+            BIO_free(derbio);
+            if (resp == NULL) {
+                BIO_puts(bio_err, "cert_status: Error reading OCSP response\n");
+                goto err;
+            }
+
+            sk_OCSP_RESPONSE_insert(sk_resp, resp, -1);
         }
     } else {
-        ret = get_ocsp_resp_from_responder(s, srctx, &resp);
+        ret = get_ocsp_resp_from_responder(s, srctx, &sk_resp);
         if (ret != SSL_TLSEXT_ERR_OK)
             goto err;
     }
 
-    rspderlen = i2d_OCSP_RESPONSE(resp, &rspder);
-    if (rspderlen <= 0)
-        goto err;
-
-    SSL_set_tlsext_status_ocsp_resp(s, rspder, rspderlen);
+    SSL_set_tlsext_status_ocsp_resp_ex(s, sk_resp);
     if (srctx->verbose) {
         BIO_puts(bio_err, "cert_status: ocsp response sent:\n");
-        OCSP_RESPONSE_print(bio_err, resp, 2);
+        for (i = 0; i < sk_OCSP_RESPONSE_num(sk_resp); i++) {
+            resp = sk_OCSP_RESPONSE_value(sk_resp, i);
+            if (resp != NULL) {
+                OCSP_RESPONSE_print(bio_err, resp, 2);
+            }
+        }
     }
 
     ret = SSL_TLSEXT_ERR_OK;
@@ -635,8 +709,6 @@ static int cert_status_cb(SSL *s, void *arg)
  err:
     if (ret != SSL_TLSEXT_ERR_OK)
         ERR_print_errors(bio_err);
-
-    OCSP_RESPONSE_free(resp);
 
     return ret;
 }
@@ -675,6 +747,7 @@ static int alpn_cb(SSL *s, const unsigned char **out, unsigned char *outlen,
     if (!s_quiet) {
         /* We can assume that |in| is syntactically valid. */
         unsigned int i;
+
         BIO_printf(bio_s_out, "ALPN protocols advertised by the client: ");
         for (i = 0; i < inlen;) {
             if (i)
@@ -873,7 +946,8 @@ const OPTIONS s_server_options[] = {
 
 #ifndef OPENSSL_NO_OCSP
     OPT_SECTION("OCSP"),
-    {"status", OPT_STATUS, '-', "Request certificate status from server"},
+    {"status", OPT_STATUS, '-',
+     "Provide certificate status response(s) if requested by client"},
     {"status_verbose", OPT_STATUS_VERBOSE, '-',
      "Print more output in certificate status callback"},
     {"status_timeout", OPT_STATUS_TIMEOUT, 'n',
@@ -886,7 +960,7 @@ const OPTIONS s_server_options[] = {
     {OPT_MORE_STR, 0, 0,
      "Default from environment variable 'no_proxy', else 'NO_PROXY', else none"},
     {"status_file", OPT_STATUS_FILE, '<',
-     "File containing DER encoded OCSP Response"},
+     "File containing DER encoded OCSP Response (can be specified multiple times)"},
 #endif
 
     OPT_SECTION("Debug"),
@@ -1424,7 +1498,10 @@ int s_server_main(int argc, char *argv[])
         case OPT_STATUS_FILE:
 #ifndef OPENSSL_NO_OCSP
             s_tlsextstatus = 1;
-            tlscstatp.respin = opt_arg();
+            if (tlscstatp.skrespin == NULL
+                && (tlscstatp.skrespin = sk_OPENSSL_STRING_new_null()) == NULL)
+                goto end;
+            sk_OPENSSL_STRING_push(tlscstatp.skrespin, opt_arg());
 #endif
             break;
         case OPT_MSG:
@@ -2353,6 +2430,7 @@ int s_server_main(int argc, char *argv[])
     OPENSSL_free(port);
     X509_VERIFY_PARAM_free(vpm);
     free_sessions();
+    sk_OPENSSL_STRING_free(tlscstatp.skrespin);
     OPENSSL_free(tlscstatp.host);
     OPENSSL_free(tlscstatp.port);
     OPENSSL_free(tlscstatp.path);
