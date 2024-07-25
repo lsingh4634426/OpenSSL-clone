@@ -38,7 +38,7 @@ typedef enum OPTION_choice {
     OPT_NO_LOG, OPT_CORRUPT_DESC, OPT_CORRUPT_TYPE, OPT_QUIET, OPT_CONFIG,
     OPT_NO_CONDITIONAL_ERRORS,
     OPT_NO_SECURITY_CHECKS,
-    OPT_TLS_PRF_EMS_CHECK,
+    OPT_TLS_PRF_EMS_CHECK, OPT_NO_SHORT_MAC,
     OPT_DISALLOW_DRGB_TRUNC_DIGEST,
     OPT_HKDF_DIGEST_CHECK,
     OPT_TLS13_KDF_DIGEST_CHECK,
@@ -54,7 +54,7 @@ const OPTIONS fipsinstall_options[] = {
     {"help", OPT_HELP, '-', "Display this summary"},
     {"pedantic", OPT_PEDANTIC, '-', "Set options for strict FIPS compliance"},
     {"verify", OPT_VERIFY, '-',
-        "Verify a config file instead of generating one"},
+     "Verify a config file instead of generating one"},
     {"module", OPT_MODULE, '<', "File name of the provider module"},
     {"provider_name", OPT_PROV_NAME, 's', "FIPS provider name"},
     {"section_name", OPT_SECTION_NAME, 's',
@@ -70,6 +70,7 @@ const OPTIONS fipsinstall_options[] = {
      "Forces self tests to run once on module installation"},
     {"ems_check", OPT_TLS_PRF_EMS_CHECK, '-',
      "Enable the run-time FIPS check for EMS during TLS1_PRF"},
+    {"no_short_mac", OPT_NO_SHORT_MAC, '-', "Disallow short MAC output"},
     {"no_drbg_truncated_digests", OPT_DISALLOW_DRGB_TRUNC_DIGEST, '-',
      "Disallow truncated digests with Hash and HMAC DRBGs"},
     {"hkdf_digest_check", OPT_HKDF_DIGEST_CHECK, '-',
@@ -105,6 +106,7 @@ typedef struct {
     unsigned int conditional_errors : 1;
     unsigned int security_checks : 1;
     unsigned int tls_prf_ems_check : 1;
+    unsigned int no_short_mac : 1;
     unsigned int drgb_no_trunc_dgst : 1;
     unsigned int hkdf_digest_check : 1;
     unsigned int tls13_kdf_digest_check : 1;
@@ -120,6 +122,7 @@ static const FIPS_OPTS pedantic_opts = {
     1,      /* conditional_errors */
     1,      /* security_checks */
     1,      /* tls_prf_ems_check */
+    1,      /* no_short_mac */
     1,      /* drgb_no_trunc_dgst */
     1,      /* hkdf_digest_check */
     1,      /* tls13_kdf_digest_check */
@@ -135,6 +138,7 @@ static FIPS_OPTS fips_opts = {
     1,      /* conditional_errors */
     1,      /* security_checks */
     0,      /* tls_prf_ems_check */
+    0,      /* no_short_mac */
     0,      /* drgb_no_trunc_dgst */
     0,      /* hkdf_digest_check */
     0,      /* tls13_kdf_digest_check */
@@ -263,6 +267,8 @@ static int write_config_fips_section(BIO *out, const char *section,
                       opts->security_checks ? "1" : "0") <= 0
         || BIO_printf(out, "%s = %s\n", OSSL_PROV_FIPS_PARAM_TLS1_PRF_EMS_CHECK,
                       opts->tls_prf_ems_check ? "1" : "0") <= 0
+        || BIO_printf(out, "%s = %s\n", OSSL_PROV_PARAM_NO_SHORT_MAC,
+                      opts->no_short_mac ? "1" : "0") <= 0
         || BIO_printf(out, "%s = %s\n", OSSL_PROV_PARAM_DRBG_TRUNC_DIGEST,
                       opts->drgb_no_trunc_dgst ? "1" : "0") <= 0
         || BIO_printf(out, "%s = %s\n", OSSL_PROV_FIPS_PARAM_HKDF_DIGEST_CHECK,
@@ -290,7 +296,7 @@ static int write_config_fips_section(BIO *out, const char *section,
                        install_mac_len)
             || BIO_printf(out, "%s = %s\n", OSSL_PROV_FIPS_PARAM_INSTALL_STATUS,
                           INSTALL_STATUS_VAL) <= 0)
-        goto end;
+            goto end;
     }
     ret = 1;
 end:
@@ -307,12 +313,12 @@ static CONF *generate_config_and_load(const char *prov_name,
     CONF *conf = NULL;
 
     mem_bio = BIO_new(BIO_s_mem());
-    if (mem_bio  == NULL)
+    if (mem_bio == NULL)
         return 0;
     if (!write_config_header(mem_bio, prov_name, section)
-         || !write_config_fips_section(mem_bio, section,
-                                       module_mac, module_mac_len,
-                                       opts, NULL, 0))
+        || !write_config_fips_section(mem_bio, section,
+                                      module_mac, module_mac_len,
+                                      opts, NULL, 0))
         goto end;
 
     conf = app_load_config_bio(mem_bio, NULL);
@@ -434,7 +440,7 @@ int fipsinstall_main(int argc, char **argv)
         switch (o) {
         case OPT_EOF:
         case OPT_ERR:
-opthelp:
+ opthelp:
             BIO_printf(bio_err, "%s: Use -help for summary.\n", prog);
             goto cleanup;
         case OPT_HELP:
@@ -463,6 +469,9 @@ opthelp:
             break;
         case OPT_TLS_PRF_EMS_CHECK:
             fips_opts.tls_prf_ems_check = 1;
+            break;
+        case OPT_NO_SHORT_MAC:
+            fips_opts.no_short_mac = 1;
             break;
         case OPT_DISALLOW_DRGB_TRUNC_DIGEST:
             fips_opts.drgb_no_trunc_dgst = 1;
