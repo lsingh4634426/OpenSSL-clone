@@ -329,4 +329,6 @@ void ossl_ht_value_list_free(HT_VALUE_LIST *list);
  */
 HT_VALUE *ossl_ht_get(HT *htable, HT_KEY *key);
 
+void ossl_ht_dump(HT *htable, void (*dump_cb)(HT_VALUE *val));
+uint64_t ossl_ht_hash(HT *h, HT_KEY *key);
 #endif
