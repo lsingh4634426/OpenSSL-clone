@@ -46,6 +46,12 @@ typedef enum OPTION_choice {
     OPT_SSHKDF_DIGEST_CHECK,
     OPT_SSKDF_DIGEST_CHECK,
     OPT_X963KDF_DIGEST_CHECK,
+    OPT_HKDF_KEY_CHECK,
+    OPT_TLS13_KDF_KEY_CHECK,
+    OPT_TLS1_PRF_KEY_CHECK,
+    OPT_SSHKDF_KEY_CHECK,
+    OPT_SSKDF_KEY_CHECK,
+    OPT_X963KDF_KEY_CHECK,
     OPT_SELF_TEST_ONLOAD, OPT_SELF_TEST_ONINSTALL
 } OPTION_CHOICE;
 
@@ -84,6 +90,18 @@ const OPTIONS fipsinstall_options[] = {
      "Enable digest check for SSKDF"},
     {"x963kdf_digest_check", OPT_X963KDF_DIGEST_CHECK, '-',
      "Enable digest check for X963KDF"},
+    {"hkdf_key_check", OPT_HKDF_KEY_CHECK, '-',
+     "Enable key check for HKDF"},
+    {"tls13_kdf_key_check", OPT_TLS13_KDF_KEY_CHECK, '-',
+     "Enable key check for TLS13-KDF"},
+    {"tls1_prf_key_check", OPT_TLS1_PRF_KEY_CHECK, '-',
+     "Enable key check for TLS1-PRF"},
+    {"sshkdf_key_check", OPT_SSHKDF_KEY_CHECK, '-',
+     "Enable key check for SSHKDF"},
+    {"sskdf_key_check", OPT_SSKDF_KEY_CHECK, '-',
+     "Enable key check for SSKDF"},
+    {"x963kdf_key_check", OPT_X963KDF_KEY_CHECK, '-',
+     "Enable key check for X963KDF"},
     OPT_SECTION("Input"),
     {"in", OPT_IN, '<', "Input config file, used when verifying"},
 
@@ -112,6 +130,12 @@ typedef struct {
     unsigned int sshkdf_digest_check : 1;
     unsigned int sskdf_digest_check : 1;
     unsigned int x963kdf_digest_check : 1;
+    unsigned int hkdf_key_check : 1;
+    unsigned int tls13_kdf_key_check : 1;
+    unsigned int tls1_prf_key_check : 1;
+    unsigned int sshkdf_key_check : 1;
+    unsigned int sskdf_key_check : 1;
+    unsigned int x963kdf_key_check : 1;
 } FIPS_OPTS;
 
 /* Pedantic FIPS compliance */
@@ -127,6 +151,12 @@ static const FIPS_OPTS pedantic_opts = {
     1,      /* sshkdf_digest_check */
     1,      /* sskdf_digest_check */
     1,      /* x963kdf_digest_check */
+    1,      /* hkdf_key_check */
+    1,      /* tls13_kdf_key_check */
+    1,      /* tls1_prf_key_check */
+    1,      /* sshkdf_key_check */
+    1,      /* sskdf_key_check */
+    1,      /* x963kdf_key_check */
 };
 
 /* Default FIPS settings for backward compatibility */
@@ -142,6 +172,12 @@ static FIPS_OPTS fips_opts = {
     0,      /* sshkdf_digest_check */
     0,      /* sskdf_digest_check */
     0,      /* x963kdf_digest_check */
+    0,      /* hkdf_key_check */
+    0,      /* tls13_kdf_key_check */
+    0,      /* tls1_prf_key_check */
+    0,      /* sshkdf_key_check */
+    0,      /* sskdf_key_check */
+    0,      /* x963kdf_key_check */
 };
 
 static int check_non_pedantic_fips(int pedantic, const char *name)
@@ -281,6 +317,19 @@ static int write_config_fips_section(BIO *out, const char *section,
         || BIO_printf(out, "%s = %s\n",
                       OSSL_PROV_FIPS_PARAM_X963KDF_DIGEST_CHECK,
                       opts->x963kdf_digest_check ? "1": "0") <= 0
+        || BIO_printf(out, "%s = %s\n", OSSL_PROV_FIPS_PARAM_HKDF_KEY_CHECK,
+                      opts->hkdf_key_check ? "1": "0") <= 0
+        || BIO_printf(out, "%s = %s\n",
+                      OSSL_PROV_FIPS_PARAM_TLS13_KDF_KEY_CHECK,
+                      opts->tls13_kdf_key_check ? "1": "0") <= 0
+        || BIO_printf(out, "%s = %s\n", OSSL_PROV_FIPS_PARAM_TLS1_PRF_KEY_CHECK,
+                      opts->tls1_prf_key_check ? "1": "0") <= 0
+        || BIO_printf(out, "%s = %s\n", OSSL_PROV_FIPS_PARAM_SSHKDF_KEY_CHECK,
+                      opts->sshkdf_key_check ? "1": "0") <= 0
+        || BIO_printf(out, "%s = %s\n", OSSL_PROV_FIPS_PARAM_SSKDF_KEY_CHECK,
+                      opts->sskdf_key_check ? "1": "0") <= 0
+        || BIO_printf(out, "%s = %s\n", OSSL_PROV_FIPS_PARAM_X963KDF_KEY_CHECK,
+                      opts->x963kdf_key_check ? "1": "0") <= 0
         || !print_mac(out, OSSL_PROV_FIPS_PARAM_MODULE_MAC, module_mac,
                       module_mac_len))
         goto end;
@@ -484,6 +533,24 @@ opthelp:
             break;
         case OPT_X963KDF_DIGEST_CHECK:
             fips_opts.x963kdf_digest_check = 1;
+            break;
+        case OPT_HKDF_KEY_CHECK:
+            fips_opts.hkdf_key_check = 1;
+            break;
+        case OPT_TLS13_KDF_KEY_CHECK:
+            fips_opts.tls13_kdf_key_check = 1;
+            break;
+        case OPT_TLS1_PRF_KEY_CHECK:
+            fips_opts.tls1_prf_key_check = 1;
+            break;
+        case OPT_SSHKDF_KEY_CHECK:
+            fips_opts.sshkdf_key_check = 1;
+            break;
+        case OPT_SSKDF_KEY_CHECK:
+            fips_opts.sskdf_key_check = 1;
+            break;
+        case OPT_X963KDF_KEY_CHECK:
+            fips_opts.x963kdf_key_check = 1;
             break;
         case OPT_QUIET:
             quiet = 1;
