@@ -218,16 +218,6 @@ Ctrl.iter = iter:4096
 Ctrl.digest = digest:sha1
 Result = KDF_CTRL_ERROR
 
-FIPSversion = >=3.4.0
-KDF = PBKDF2
-Ctrl.pkcs5 = pkcs5:1
-Ctrl.pass = pass:password
-Ctrl.salt = salt:salt
-Ctrl.iter = iter:4096
-Ctrl.digest = digest:sha1
-CtrlFinal = pkcs5:0
-Result = KDF_DERIVE_ERROR
-
 # Test that the operation with unapproved parameters is reported as unapproved
 FIPSversion = >=3.4.0
 KDF = PBKDF2

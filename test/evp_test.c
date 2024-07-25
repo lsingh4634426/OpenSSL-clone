@@ -189,7 +189,6 @@ static const OSSL_PARAM settable_ctx_params[] = {
     OSSL_PARAM_int("key-check", NULL),
     OSSL_PARAM_int("digest-check", NULL),
     OSSL_PARAM_int("ems_check", NULL),
-    OSSL_PARAM_int("pkcs5", NULL),
     OSSL_PARAM_END
 };
 
@@ -3354,7 +3353,6 @@ typedef struct kdf_data_st {
     OSSL_PARAM params[20];
     OSSL_PARAM *p;
     STACK_OF(OPENSSL_STRING) *init_controls; /* collection of controls */
-    STACK_OF(OPENSSL_STRING) *final_controls; /* collection of controls */
 } KDF_DATA;
 
 /*
@@ -3390,7 +3388,6 @@ static int kdf_test_init(EVP_TEST *t, const char *name)
     }
     t->data = kdata;
     kdata->init_controls = sk_OPENSSL_STRING_new_null();
-    kdata->final_controls = sk_OPENSSL_STRING_new_null();
     return 1;
 }
 
@@ -3400,7 +3397,6 @@ static void kdf_test_cleanup(EVP_TEST *t)
     OSSL_PARAM *p;
 
     ctrlfree(kdata->init_controls);
-    ctrlfree(kdata->final_controls);
     for (p = kdata->params; p->key != NULL; p++)
         OPENSSL_free(p->data);
     OPENSSL_free(kdata->output);
@@ -3514,8 +3510,6 @@ static int kdf_test_parse(EVP_TEST *t,
         return parse_bin(value, &kdata->output, &kdata->output_len);
     if (strcmp(keyword, "CtrlInit") == 0)
         return ctrladd(kdata->init_controls, value);
-    if (strcmp(keyword, "CtrlFinal") == 0)
-        return ctrladd(kdata->final_controls, value);
     if (HAS_PREFIX(keyword, "Ctrl"))
         return kdf_test_ctrl(t, kdata->ctx, value);
     return 0;
@@ -3546,18 +3540,6 @@ static int kdf_test_run(EVP_TEST *t)
         t->err = "KDF_CTRL_ERROR";
         goto err;
     }
-
-    if (sk_OPENSSL_STRING_num(expected->final_controls) > 0) {
-        if (!ctrl2params(t, expected->final_controls,
-                         NULL,
-                         params, OSSL_NELEM(params), &params_n))
-            goto err;
-        if (!EVP_KDF_CTX_set_params(expected->ctx, params)) {
-            t->err = "KDF_CTRL_ERROR";
-            goto err;
-        }
-    }
-
     if (!TEST_ptr(got = OPENSSL_malloc(got_len == 0 ? 1 : got_len))) {
         t->err = "INTERNAL_ERROR";
         goto err;
