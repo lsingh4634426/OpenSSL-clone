@@ -379,6 +379,8 @@ my %params = (
     'PKEY_PARAM_EC_POINT_CONVERSION_FORMAT' => "point-format",
     'PKEY_PARAM_EC_GROUP_CHECK_TYPE' =>        "group-check",
     'PKEY_PARAM_EC_INCLUDE_PUBLIC' =>          "include-public",
+    'PKEY_PARAM_FIPS_SIGN_CHECK' =>            "sign-check",
+    'PKEY_PARAM_FIPS_APPROVED_INDICATOR' => '*ALG_PARAM_FIPS_APPROVED_INDICATOR',
 
 # Key Exchange parameters
     'EXCHANGE_PARAM_PAD' =>                   "pad",# uint
@@ -407,7 +409,6 @@ my %params = (
     'SIGNATURE_PARAM_CONTEXT_STRING' =>     "context-string",
     'SIGNATURE_PARAM_FIPS_DIGEST_CHECK' =>  '*PKEY_PARAM_FIPS_DIGEST_CHECK',
     'SIGNATURE_PARAM_FIPS_KEY_CHECK' =>     '*PKEY_PARAM_FIPS_KEY_CHECK',
-    'SIGNATURE_PARAM_FIPS_APPROVED_INDICATOR' => '*ALG_PARAM_FIPS_APPROVED_INDICATOR',
 
 # Asym cipher parameters
     'ASYM_CIPHER_PARAM_DIGEST' =>                   '*PKEY_PARAM_DIGEST',
